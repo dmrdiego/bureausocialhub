@@ -569,13 +569,13 @@ export default function Candidatura() {
                                                         <div className="flex flex-col items-center justify-center pt-5 pb-6">
                                                             <LucideBriefcase className="w-8 h-8 mb-3 text-heritage-navy/30 dark:text-white/30 group-hover:text-heritage-terracotta transition-colors" />
                                                             <p className="mb-2 text-sm text-heritage-navy/60 dark:text-white/50"><span className="font-bold">Clique para enviar fotos</span> do seu trabalho</p>
-                                                            <p className="text-xs text-heritage-navy/40 dark:text-white/30">PNG, JPG (MAX. 5MB)</p>
+                                                            <p className="text-xs text-heritage-navy/40 dark:text-white/30">PNG, JPG, PDF, DOC (MAX. 5MB)</p>
                                                         </div>
                                                         <input
                                                             id="dropzone-file"
                                                             type="file"
                                                             multiple
-                                                            accept="image/*"
+                                                            accept="image/*,.pdf,.doc,.docx"
                                                             className="hidden"
                                                             onChange={async (e) => {
                                                                 if (!e.target.files?.length) return
