@@ -39,7 +39,7 @@ const craftCategories = [
             "Tecelões de teares tradicionais",
             "Sapateiros e Correeiros artesanais"
         ],
-        image: "https://images.unsplash.com/photo-1605218427306-633ba8788812?auto=format&fit=crop&q=80&w=800",
+        image: "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&q=80&w=800",
         color: "text-heritage-gold",
         bg: "bg-heritage-gold"
     },
