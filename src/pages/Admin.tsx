@@ -33,6 +33,11 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useAuth } from "@/context/AuthContext"
 import { supabase } from "@/lib/supabase"
 
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+
 // Type definition for Candidatura Data coming from DB
 interface CandidaturaDB {
     id: string
@@ -50,6 +55,9 @@ interface UserProfile {
     quota_status: string
     phone?: string
     nif?: string
+    member_category?: string
+    member_number?: string
+    is_direction?: boolean
     created_at: string
 }
 
@@ -110,6 +118,18 @@ export default function Admin() {
     // Email Editing State
     const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null)
 
+    // Member Management State
+    const [editingMember, setEditingMember] = useState<UserProfile | null>(null)
+    const [isMemberDialogOpen, setIsMemberDialogOpen] = useState(false)
+    const [memberSearchTerm, setMemberSearchTerm] = useState("")
+    const [memberFilterCategory, setMemberFilterCategory] = useState("all")
+    const [memberFormData, setMemberFormData] = useState({
+        member_category: 'contribuinte',
+        member_number: '',
+        is_direction: false,
+        role: 'pending'
+    })
+
     const fetchAllData = async () => {
         setIsLoading(true)
         try {
@@ -166,6 +186,11 @@ export default function Admin() {
         reviewing: candidaturas.filter(c => c.status === 'reviewing').length,
         approved: candidaturas.filter(c => c.status === 'approved').length,
         rejected: candidaturas.filter(c => c.status === 'rejected').length,
+
+        // Member specific stats
+        founders: members.filter(m => m.member_category === 'fundador').length,
+        effective: members.filter(m => m.member_category === 'efetivo').length,
+        contributors: members.filter(m => m.member_category === 'contribuinte').length,
     }
 
 
@@ -229,6 +254,51 @@ export default function Admin() {
         }
     }
 
+    const handleOpenEditMember = (member: UserProfile) => {
+        setEditingMember(member)
+        setMemberFormData({
+            member_category: member.member_category || 'contribuinte',
+            member_number: member.member_number || '',
+            is_direction: member.is_direction || false,
+            role: member.role || 'pending'
+        })
+        setIsMemberDialogOpen(true)
+    }
+
+    const handleSaveMember = async () => {
+        if (!editingMember) return
+
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    role: memberFormData.role,
+                    member_category: memberFormData.member_category,
+                    member_number: memberFormData.member_number,
+                    is_direction: memberFormData.is_direction
+                })
+                .eq('id', editingMember.id)
+
+            if (error) throw error
+
+            toast.success("Dados do associado atualizados!")
+
+            // Update local state
+            setMembers(prev => prev.map(m => m.id === editingMember.id ? {
+                ...m,
+                role: memberFormData.role,
+                member_category: memberFormData.member_category,
+                member_number: memberFormData.member_number,
+                is_direction: memberFormData.is_direction
+            } : m))
+
+            setIsMemberDialogOpen(false)
+            setEditingMember(null)
+        } catch (err: any) {
+            toast.error("Erro ao atualizar associado", { description: err.message })
+        }
+    }
+
     const handleDeleteItem = async (itemId: string) => {
         try {
             const { error } = await supabase
@@ -247,23 +317,7 @@ export default function Admin() {
 
     }
 
-    const handleUpdateRole = async (userId: string, newRole: string) => {
-        try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({ role: newRole })
-                .eq('id', userId)
 
-            if (error) throw error
-
-            toast.success(`Role atualizada para ${newRole}`)
-
-            // Update local state
-            setMembers(prev => prev.map(m => m.id === userId ? { ...m, role: newRole } : m))
-        } catch (err: any) {
-            toast.error("Erro ao atualizar role", { description: err.message })
-        }
-    }
 
     const handleOpenSessionControl = async (assembly: Assembly) => {
         setEditingAssembly(assembly)
@@ -653,20 +707,57 @@ export default function Admin() {
                     </Card>
                 </TabsContent>
 
-                <TabsContent value="members" className="space-y-4">
+                <TabsContent value="members" className="space-y-6">
+                    {/* Member Stats */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {[
+                            { label: 'Fundadores', value: stats.founders, color: 'text-heritage-gold bg-heritage-gold/10' },
+                            { label: 'Efetivos', value: stats.effective, color: 'text-heritage-ocean bg-heritage-ocean/10' },
+                            { label: 'Contribuintes', value: stats.contributors, color: 'text-heritage-success bg-heritage-success/10' },
+                            { label: 'Total', value: stats.members, color: 'text-heritage-navy bg-heritage-navy/10 dark:text-white dark:bg-white/10' },
+                        ].map((stat, i) => (
+                            <Card key={i} className="border-none shadow-sm glass-card">
+                                <CardContent className="p-4 flex items-center gap-4">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${stat.color}`}>
+                                        <LucideUsers className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <p className="text-2xl font-black">{stat.value}</p>
+                                        <p className="text-xs uppercase font-bold opacity-50">{stat.label}</p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+
                     <Card className="rounded-[32px] border-none shadow-sm glass-card overflow-hidden">
-                        <CardHeader className="border-b border-heritage-navy/5 dark:border-white/5 p-8 flex flex-row items-center justify-between">
+                        <CardHeader className="border-b border-heritage-navy/5 dark:border-white/5 p-8 flex flex-col md:flex-row items-center justify-between gap-4">
                             <CardTitle className="text-xl font-black text-heritage-navy dark:text-white">
                                 Base de Associados
                             </CardTitle>
-                            <div className="flex gap-3">
-                                <div className="relative w-64">
+                            <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                                <div className="relative w-full md:w-64">
                                     <LucideSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-heritage-navy/40" />
                                     <Input
-                                        placeholder="Buscar por nome ou nif..."
+                                        placeholder="Buscar por nome, nif, nº sócio..."
                                         className="pl-10 rounded-xl bg-heritage-sand/50 dark:bg-zinc-800 border-none"
+                                        value={memberSearchTerm}
+                                        onChange={(e) => setMemberSearchTerm(e.target.value)}
                                     />
                                 </div>
+                                <Select value={memberFilterCategory} onValueChange={setMemberFilterCategory}>
+                                    <SelectTrigger className="w-full md:w-[180px] rounded-xl bg-heritage-sand/50 dark:bg-zinc-800 border-none">
+                                        <SelectValue placeholder="Categoria" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todas as Categorias</SelectItem>
+                                        <SelectItem value="fundador">Fundador</SelectItem>
+                                        <SelectItem value="efetivo">Efetivo</SelectItem>
+                                        <SelectItem value="contribuinte">Contribuinte</SelectItem>
+                                        <SelectItem value="honorario">Honorário</SelectItem>
+                                        <SelectItem value="institucional">Institucional</SelectItem>
+                                    </SelectContent>
+                                </Select>
                                 <Button onClick={handleExportCSV} variant="outline" className="rounded-xl border-heritage-navy/10 hover:bg-heritage-sand/50">
                                     Exportar CSV
                                 </Button>
@@ -674,58 +765,129 @@ export default function Admin() {
                         </CardHeader>
                         <CardContent className="p-0">
                             <div className="divide-y divide-heritage-navy/5 dark:divide-white/5">
-                                {members.map((member) => (
-                                    <div key={member.id} className="p-6 flex items-center justify-between hover:bg-heritage-sand/10 dark:hover:bg-zinc-900/30 transition-colors">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-full bg-heritage-navy/10 dark:bg-white/10 flex items-center justify-center font-bold text-heritage-navy dark:text-white">
-                                                {member.full_name?.charAt(0) || '?'}
-                                            </div>
-                                            <div>
-                                                <h4 className="font-bold text-heritage-navy dark:text-white">{member.full_name}</h4>
-                                                <p className="text-sm text-heritage-navy/40 dark:text-white/40">{member.email}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <div className="text-right">
-                                                <p className="text-sm font-medium text-heritage-navy dark:text-white">{member.nif || 'N/A'}</p>
-                                                <p className="text-xs text-heritage-navy/40 dark:text-white/40">{member.phone || 'N/A'}</p>
-                                            </div>
-                                            <div className="flex flex-col items-end gap-2">
-                                                <Badge variant={member.role === 'admin' ? 'default' : 'secondary'} className="uppercase text-[10px]">
-                                                    {member.role === 'pending' ? 'Pendente' : member.role}
-                                                </Badge>
-                                                <div className="flex gap-1">
-                                                    {member.role !== 'admin' && (
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="h-6 text-[10px] px-2 text-heritage-navy/50 hover:text-heritage-navy"
-                                                            onClick={() => handleUpdateRole(member.id, 'admin')}
-                                                        >
-                                                            Promover Admin
-                                                        </Button>
+                                {members
+                                    .filter(m => {
+                                        const matchesSearch = m.full_name?.toLowerCase().includes(memberSearchTerm.toLowerCase()) ||
+                                            m.email?.toLowerCase().includes(memberSearchTerm.toLowerCase()) ||
+                                            m.nif?.includes(memberSearchTerm) ||
+                                            m.member_number?.includes(memberSearchTerm)
+                                        const matchesCategory = memberFilterCategory === 'all' || m.member_category === memberFilterCategory
+                                        return matchesSearch && matchesCategory
+                                    })
+                                    .map((member) => (
+                                        <div key={member.id} className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between hover:bg-heritage-sand/10 dark:hover:bg-zinc-900/30 transition-colors gap-4">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-full bg-heritage-navy/10 dark:bg-white/10 flex items-center justify-center font-bold text-heritage-navy dark:text-white text-lg relative">
+                                                    {member.full_name?.charAt(0) || '?'}
+                                                    {member.is_direction && (
+                                                        <div className="absolute -bottom-1 -right-1 bg-heritage-gold text-white p-1 rounded-full border-2 border-white dark:border-zinc-900" title="Membro da Direção">
+                                                            <LucideGavel className="w-3 h-3" />
+                                                        </div>
                                                     )}
-                                                    {member.role === 'pending' && (
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="h-6 text-[10px] px-2 text-heritage-success hover:bg-heritage-success/10"
-                                                            onClick={() => handleUpdateRole(member.id, 'member')}
-                                                        >
-                                                            Aprovar Membro
-                                                        </Button>
-                                                    )}
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <h4 className="font-bold text-heritage-navy dark:text-white text-lg">{member.full_name}</h4>
+                                                        {member.member_number && (
+                                                            <Badge variant="outline" className="text-[10px] h-5 border-heritage-navy/20 text-heritage-navy/60">
+                                                                #{member.member_number}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-sm text-heritage-navy/40 dark:text-white/40">{member.email}</p>
+                                                    <div className="flex gap-2 mt-1 md:hidden">
+                                                        <Badge className="bg-heritage-navy/5 text-heritage-navy dark:bg-white/10 dark:text-white">
+                                                            {member.member_category || 'Sem Categoria'}
+                                                        </Badge>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+                                                <div className="hidden md:block text-right mr-4">
+                                                    <Badge variant="outline" className="mb-1 border-none bg-heritage-navy/5 text-heritage-navy dark:bg-white/10 dark:text-white uppercase text-[10px] font-bold tracking-wider">
+                                                        {member.member_category || '----'}
+                                                    </Badge>
+                                                    <p className="text-xs text-heritage-navy/40 dark:text-white/40">{member.phone || 'Sem telefone'}</p>
+                                                </div>
+
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="rounded-xl hover:bg-heritage-ocean/10 text-heritage-ocean"
+                                                        onClick={() => handleOpenEditMember(member)}
+                                                    >
+                                                        <LucideEdit className="w-4 h-4" />
+                                                    </Button>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
                                 {members.length === 0 && (
                                     <div className="p-10 text-center text-heritage-navy/40">Nenhum associado encontrado.</div>
                                 )}
                             </div>
                         </CardContent>
                     </Card>
+
+                    <Dialog open={isMemberDialogOpen} onOpenChange={setIsMemberDialogOpen}>
+                        <DialogContent className="sm:max-w-[425px]">
+                            <DialogHeader>
+                                <DialogTitle>Editar Associado</DialogTitle>
+                                <DialogDescription>
+                                    Alterar categoria, número de sócio e permissões.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="grid gap-4 py-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="category">Categoria</Label>
+                                    <Select
+                                        value={memberFormData.member_category}
+                                        onValueChange={(val) => setMemberFormData({ ...memberFormData, member_category: val })}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Selecione..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="contribuinte">Contribuinte</SelectItem>
+                                            <SelectItem value="efetivo">Efetivo</SelectItem>
+                                            <SelectItem value="fundador">Fundador</SelectItem>
+                                            <SelectItem value="honorario">Honorário</SelectItem>
+                                            <SelectItem value="institucional">Institucional</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="number">Número de Sócio</Label>
+                                    <Input
+                                        id="number"
+                                        value={memberFormData.member_number}
+                                        onChange={(e) => setMemberFormData({ ...memberFormData, member_number: e.target.value })}
+                                    />
+                                </div>
+                                <div className="flex items-center justify-between space-x-2 pt-2">
+                                    <Label htmlFor="direction">Membro da Direção?</Label>
+                                    <Switch
+                                        id="direction"
+                                        checked={memberFormData.is_direction}
+                                        onCheckedChange={(checked) => setMemberFormData({ ...memberFormData, is_direction: checked })}
+                                    />
+                                </div>
+                                <div className="flex items-center justify-between space-x-2">
+                                    <Label htmlFor="admin">Acesso Admin?</Label>
+                                    <Switch
+                                        id="admin"
+                                        checked={memberFormData.role === 'admin'}
+                                        onCheckedChange={(checked) => setMemberFormData({ ...memberFormData, role: checked ? 'admin' : 'member' })}
+                                    />
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <Button type="submit" onClick={handleSaveMember}>Salvar Alterações</Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
                 </TabsContent>
 
                 <TabsContent value="emails" className="space-y-6">

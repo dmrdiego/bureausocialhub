@@ -12,6 +12,8 @@ interface Profile {
     nif?: string
     phone?: string
     member_category?: 'fundador' | 'efetivo' | 'contribuinte' | 'voluntario' | 'profissional' | 'benemerito' | 'patrocinador' | 'institucional'
+    member_number?: string
+    is_direction?: boolean
     created_at: string
 }
 

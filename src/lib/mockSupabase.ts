@@ -77,6 +77,9 @@ class MockQueryBuilder {
                 role: 'admin',
                 quota_status: 'active',
                 quota_next_due: new Date().toISOString(),
+                member_category: 'fundador',
+                member_number: '001',
+                is_direction: true,
                 created_at: new Date().toISOString()
             };
             // Save this implicit profile to DB so updates work later
@@ -181,6 +184,9 @@ export const mockSupabase = {
                     full_name: 'Novo Usuário',
                     role: 'pending', // Pending initially
                     quota_status: 'inactive',
+                    member_category: 'contribuinte',
+                    member_number: null,
+                    is_direction: false,
                     created_at: new Date().toISOString()
                 });
                 saveDb(db);
