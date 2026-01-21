@@ -1,13 +1,17 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Session, User } from '@supabase/supabase-js'
+import { logSystemError } from '@/lib/errorLogger'
+import { LucideLoader2 } from 'lucide-react'
+
 
 interface Profile {
     id: string
     email: string
     full_name: string
     role: 'admin' | 'member' | 'pending'
-    quota_status: 'active' | 'late' | 'pending'
+    quota_status: 'active' | 'late' | 'pending' | 'inactive'
+
     quota_next_due?: string
     nif?: string
     phone?: string
@@ -53,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setProfile(data)
         } catch (error) {
             console.error('Error fetching profile:', error)
+            logSystemError(error, 'AuthContext.fetchProfile', userId)
         }
     }
 
@@ -77,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
             } catch (error) {
                 console.error("Erro na inicialização da auth:", error)
+                logSystemError(error, 'AuthContext.initAuth')
             } finally {
                 setLoading(false)
             }
@@ -107,9 +113,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return (
         <AuthContext.Provider value={{ session, user, profile, loading, signOut, refreshProfile }}>
-            {!loading && children}
+            {loading ? (
+                <div className="flex items-center justify-center min-h-screen bg-heritage-sand/30 dark:bg-zinc-950">
+                    <div className="flex flex-col items-center gap-4">
+                        <LucideLoader2 className="w-10 h-10 text-heritage-navy dark:text-white animate-spin" />
+                        <p className="text-xs font-bold uppercase tracking-widest text-heritage-navy/40 dark:text-white/40">Iniciando Portal...</p>
+                    </div>
+                </div>
+            ) : children}
         </AuthContext.Provider>
     )
 }
+
 
 export const useAuth = () => useContext(AuthContext)

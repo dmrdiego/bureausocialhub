@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
+import { logSystemError } from "@/lib/errorLogger"
 
 export default function Help() {
     return (
@@ -70,19 +71,17 @@ export default function Help() {
                                 }
 
                                 const loadingToast = toast.loading("Enviando mensagem...")
-
                                 try {
-                                    // Get user if logged in, otherwise anonymous
-                                    const { data: { session } } = await supabase.auth.getSession()
-
+                                    const { data: { session: currentSession } } = await supabase.auth.getSession()
                                     const { error } = await supabase
                                         .from('contact_messages')
                                         .insert({
                                             subject,
                                             message,
-                                            user_id: session?.user?.id || 'anonymous',
+                                            user_id: currentSession?.user?.id || null, // Changed from session to currentSession
                                             status: 'open'
                                         })
+
 
                                     if (error) throw error
 
@@ -91,10 +90,13 @@ export default function Help() {
                                         description: "A Direção Executiva responderá em breve."
                                     })
                                     form.reset()
-                                } catch (error) {
+                                } catch (error: any) {
                                     toast.dismiss(loadingToast)
                                     toast.error("Erro ao enviar mensagem.")
+                                    logSystemError(error, 'Help.contactFormSubmit')
                                 }
+
+
                             }}>
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-[0.3em] text-heritage-navy/30 dark:text-white/30 ml-6 transition-apple">Assunto do Contacto</label>

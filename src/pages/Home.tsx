@@ -2,8 +2,41 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Link } from "react-router-dom"
 import { LucideArrowRight, LucideGlobe, LucideShield, LucideUsers, LucideHistory } from "lucide-react"
+import { motion } from "framer-motion"
+import { useState, useEffect } from "react"
+import { supabase } from "@/lib/supabase"
 
 export default function Home() {
+    const [content, setContent] = useState<any>({
+        hero: {
+            title: "Tradição que <br /> <span class='text-heritage-terracotta'>Reabilita</span>.",
+            subtitle: "Atuamos no coração histórico de Lisboa para preservar a alma dos bairros através da reabilitação urbana e inclusão social."
+        },
+        mission: {
+            title: "O lucro humano <br />em <span class='italic font-serif'>Lisboa</span>.",
+            text: "Reabilitamos edifícios devolutos para garantir que o artesão, o fadista e o idoso continuem a ser os donos das ruas de Alfama e Graça."
+        }
+    })
+
+    useEffect(() => {
+        const fetchCMS = async () => {
+            const { data } = await supabase.from('cms_content').select('*')
+            if (data && data.length > 0) {
+                const mapped = data.reduce((acc: any, item: any) => {
+                    acc[item.section_key] = item.content
+                    return acc
+                }, {})
+
+                // Merge carefully to avoid undefined errors if partial content
+                setContent((prev: any) => ({
+                    hero: { ...prev.hero, ...mapped.hero },
+                    mission: { ...prev.mission, ...mapped.mission }
+                }))
+            }
+        }
+        fetchCMS()
+    }, [])
+
     return (
         <div className="flex flex-col w-full bg-background transition-apple">
             {/* Hero Section - Apple Glass Style */}
@@ -21,13 +54,13 @@ export default function Home() {
                             Bureau Social • IPSS DE LISBOA
                         </Badge>
 
-                        <h1 className="text-7xl md:text-9xl font-black text-heritage-navy dark:text-white leading-[0.9] tracking-tighter transition-apple">
-                            Tradição que <br />
-                            <span className="text-heritage-terracotta">Reabilita</span>.
-                        </h1>
+                        <h1
+                            className="text-7xl md:text-9xl font-black text-heritage-navy dark:text-white leading-[0.9] tracking-tighter transition-apple"
+                            dangerouslySetInnerHTML={{ __html: content.hero.title }}
+                        />
 
                         <p className="text-xl md:text-2xl text-heritage-navy/60 dark:text-white/40 max-w-2xl mx-auto leading-relaxed font-medium transition-apple">
-                            Atuamos no coração histórico de Lisboa para preservar a alma dos bairros através da reabilitação urbana e inclusão social.
+                            {content.hero.subtitle}
                         </p>
                     </motion.div>
 
@@ -57,11 +90,12 @@ export default function Home() {
             <section className="py-40 bg-white dark:bg-zinc-950 px-6 transition-apple">
                 <div className="max-w-4xl mx-auto text-center space-y-14">
                     <Badge className="bg-heritage-gold/10 text-heritage-gold border-none px-4 rounded-full font-black uppercase tracking-widest text-[10px]">Nossa Visão</Badge>
-                    <h2 className="text-5xl md:text-7xl font-black text-heritage-navy dark:text-white leading-tight transition-apple">
-                        O lucro humano <br />em <span className="italic font-serif">Lisboa</span>.
-                    </h2>
+                    <h2
+                        className="text-5xl md:text-7xl font-black text-heritage-navy dark:text-white leading-tight transition-apple"
+                        dangerouslySetInnerHTML={{ __html: content.mission.title }}
+                    />
                     <p className="text-2xl text-heritage-navy/50 dark:text-white/30 leading-relaxed font-medium max-w-3xl mx-auto transition-apple">
-                        Reabilitamos edifícios devolutos para garantir que o artesão, o fadista e o idoso continuem a ser os donos das ruas de Alfama e Graça.
+                        {content.mission.text}
                     </p>
                 </div>
             </section>
@@ -88,5 +122,3 @@ export default function Home() {
         </div>
     )
 }
-
-import { motion } from "framer-motion"

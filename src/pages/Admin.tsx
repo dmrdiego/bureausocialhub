@@ -1,4 +1,8 @@
 import { useState, useEffect } from "react"
+import { useNavigate, useSearchParams } from "react-router-dom"
+import { emailService } from "@/lib/emailService"
+
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,7 +21,9 @@ import {
     LucideSettings,
     LucideFileText,
     LucideShield,
+    LucideAlertTriangle,
     LucideEdit,
+
     LucideSave,
     LucideSearch,
     LucideCalendar,
@@ -27,11 +33,25 @@ import {
     LucideRefreshCw,
     LucideMail,
     LucideTrash2,
-    LucideCheckCircle2
+    LucideCheckCircle2,
+    LucideClock,
+    LucideMapPin,
+    LucideLoader2,
+    LucideCpu,
+    LucideActivity,
+    LucideTerminal
 } from "lucide-react"
+
+
+
+
+
 import { motion, AnimatePresence } from "framer-motion"
+
 import { useAuth } from "@/context/AuthContext"
 import { supabase } from "@/lib/supabase"
+import AdminLogs from "@/components/admin/AdminLogs"
+import { logSystemError } from "@/lib/errorLogger"
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -44,6 +64,7 @@ interface CandidaturaDB {
     user_id: string
     status: string
     created_at: string
+    type?: string
     form_data: any // JSONB
 }
 
@@ -77,6 +98,8 @@ interface Assembly {
     location: string
     meeting_link: string
     status: 'scheduled' | 'open_for_voting' | 'closed' | 'completed'
+    minutes_status?: 'draft' | 'published'
+    minutes_content?: string
 }
 
 interface AssemblyItem {
@@ -86,6 +109,15 @@ interface AssemblyItem {
     description: string
     type: 'discussion' | 'voting_simple' | 'election'
     order_index: number
+}
+
+interface AttendanceRecord {
+    id: string
+    user_id: string
+    assembly_id: string
+    checked_in_at: string
+    can_vote: boolean
+    profiles?: any // Can be object or array depending on Supabase response
 }
 
 type CandidaturaStatus = 'pending' | 'reviewing' | 'approved' | 'rejected' | 'submitted'
@@ -100,6 +132,10 @@ const statusConfig: Record<string, { label: string; color: string; icon: typeof 
 
 export default function Admin() {
     const { profile } = useAuth()
+    const navigate = useNavigate()
+    const [searchParams] = useSearchParams()
+    const currentTab = searchParams.get('tab') || 'candidaturas'
+
     const [candidaturas, setCandidaturas] = useState<CandidaturaDB[]>([])
     const [members, setMembers] = useState<UserProfile[]>([])
     const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([])
@@ -130,6 +166,32 @@ export default function Admin() {
         role: 'pending'
     })
 
+    // Events Management State
+    const [events, setEvents] = useState<any[]>([])
+    const [isCreatingEvent, setIsCreatingEvent] = useState(false)
+    const [newEvent, setNewEvent] = useState({
+        title: '',
+        description: '',
+        date: '',
+        location: '',
+        category: 'social',
+        image_url: ''
+    })
+
+    // Projects (Voting) Management State
+    const [projects, setProjects] = useState<any[]>([])
+    const [isCreatingProject, setIsCreatingProject] = useState(false)
+    const [newProject, setNewProject] = useState({
+        title: '',
+        description: '',
+        goal: 100
+    })
+
+
+    // Assembly Attendance State
+    const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
+    const [isLoadingAttendance, setIsLoadingAttendance] = useState(false)
+
     const fetchAllData = async () => {
         setIsLoading(true)
         try {
@@ -149,8 +211,6 @@ export default function Admin() {
             if (membersError) throw membersError
             setMembers(membersData || [])
 
-            if (membersError) throw membersError
-            setMembers(membersData || [])
 
             // Fetch Email Templates
             const { data: templatesData, error: templatesError } = await supabase
@@ -168,8 +228,27 @@ export default function Admin() {
             if (assembliesError) throw assembliesError
             setAssemblies(assembliesData || [])
 
+            // Fetch Events
+            const { data: eventsData, error: eventsError } = await supabase
+                .from('events')
+                .select('*')
+                .order('date', { ascending: false })
+            if (eventsError) throw eventsError
+            setEvents(eventsData || [])
+
+            // Fetch Projects
+            const { data: projectsData, error: projectsError } = await supabase
+                .from('projects')
+                .select('*')
+                .order('created_at', { ascending: false })
+            if (projectsError) throw projectsError
+            setProjects(projectsData || [])
+
         } catch (err: any) {
+
+            console.error(err)
             toast.error("Erro ao carregar dados", { description: err.message })
+            logSystemError(err, 'Admin.fetchAllData', profile?.id)
         } finally {
             setIsLoading(false)
         }
@@ -229,7 +308,12 @@ export default function Admin() {
     }
 
     const handleAddItem = async () => {
-        if (!selectedAssemblyId || !newItem.title) return
+        if (!selectedAssemblyId || !newItem.title) {
+            console.warn("Cannot add item: missing assembly ID or title", { selectedAssemblyId, title: newItem.title });
+            return
+        }
+
+        console.log("Adding item to assembly:", selectedAssemblyId, newItem);
 
         try {
             const { data, error } = await supabase
@@ -244,15 +328,22 @@ export default function Admin() {
                 .select()
                 .single()
 
-            if (error) throw error
+            if (error) {
+                console.error("Supabase error adding item:", error);
+                throw error
+            }
 
+            console.log("Item added successfully:", data);
             setAssemblyItems([...assemblyItems, data])
             setNewItem({ title: '', description: '', type: 'discussion' })
             toast.success("Item adicionado à pauta")
         } catch (err: any) {
+            console.error("Catch error adding item:", err);
             toast.error("Erro ao adicionar item", { description: err.message })
+            logSystemError(err, 'Admin.handleAddItem', profile?.id)
         }
     }
+
 
     const handleOpenEditMember = (member: UserProfile) => {
         setEditingMember(member)
@@ -296,6 +387,7 @@ export default function Admin() {
             setEditingMember(null)
         } catch (err: any) {
             toast.error("Erro ao atualizar associado", { description: err.message })
+            logSystemError(err, 'Admin.handleSaveMember', profile?.id)
         }
     }
 
@@ -312,6 +404,7 @@ export default function Admin() {
             toast.success("Item removido")
         } catch (err: any) {
             toast.error("Erro ao remover item")
+            logSystemError(err, 'Admin.handleDeleteItem', profile?.id)
         }
 
 
@@ -322,6 +415,9 @@ export default function Admin() {
     const handleOpenSessionControl = async (assembly: Assembly) => {
         setEditingAssembly(assembly)
         setSelectedAssemblyId(assembly.id)
+
+        // Fetch Attendance
+        fetchAssemblyAttendance(assembly.id)
 
         // Fetch items and votes for stats
         const { data: items } = await supabase
@@ -364,15 +460,127 @@ export default function Admin() {
 
             // Refresh main list
             fetchAllData()
-        } catch (err) {
+        } catch (err: any) {
             toast.error("Erro ao atualizar status")
+            logSystemError(err, 'Admin.handleUpdateStatus', profile?.id)
         }
     }
 
+    const handleGenerateMinutes = async () => {
+        if (!selectedAssemblyId || !editingAssembly) return
 
+        const loadingToast = toast.loading("Gerando ata automática...")
+        try {
+            // Generate content
+            let content = `# Ata da Assembleia: ${editingAssembly.title}\n`
+            content += `Data: ${new Date(editingAssembly.date).toLocaleDateString('pt-PT')}\n`
+            content += `Local: ${editingAssembly.location}\n\n`
 
+            content += `## Presenças\n`
+            content += `Total de membros presentes: ${attendanceRecords.length}\n`
+            attendanceRecords.forEach(rec => {
+                content += `- ${rec.profiles?.full_name} (${rec.profiles?.member_category})\n`
+            })
 
+            content += `\n## Deliberações e Votações\n`
+            assemblyItems.forEach((item, i) => {
+                content += `### ${i + 1}. ${item.title}\n`
+                if (item.description) content += `${item.description}\n\n`
 
+                if (liveStats[item.id]) {
+                    const stats = liveStats[item.id]
+                    content += `- A Favor: ${stats.approve}\n`
+                    content += `- Contra: ${stats.reject}\n`
+                    content += `- Abstenções: ${stats.abstain}\n`
+
+                    const total = stats.approve + stats.reject + stats.abstain
+                    if (total > 0) {
+                        const result = stats.approve > stats.reject ? 'APROVADO' : 'REJEITADO'
+                        content += `**Resultado: ${result}**\n`
+                    }
+                } else {
+                    content += `*Item de discussão sem votação.*\n`
+                }
+                content += `\n`
+            })
+
+            content += `\n---\nAta gerada automaticamente pelo Sistema Bureau Social em ${new Date().toLocaleString('pt-PT')}.`
+
+            const { error } = await supabase
+                .from('assemblies')
+                .update({
+                    minutes_content: content,
+                    minutes_status: 'draft'
+                })
+                .eq('id', selectedAssemblyId)
+
+            if (error) throw error
+
+            toast.success("Ata gerada com sucesso! Você pode editá-la no banco de dados ou em futuras versões do painel.", { id: loadingToast })
+            setEditingAssembly({ ...editingAssembly, minutes_content: content, minutes_status: 'draft' })
+        } catch (err: any) {
+            toast.error("Erro ao gerar ata", { id: loadingToast })
+            logSystemError(err, 'Admin.handleGenerateMinutes', profile?.id)
+        }
+    }
+
+    // Fetch attendance for a specific assembly
+    const fetchAssemblyAttendance = async (assemblyId: string) => {
+        setIsLoadingAttendance(true)
+        try {
+            const { data, error } = await supabase
+                .from('assembly_attendances')
+                .select(`
+                    id,
+                    user_id,
+                    assembly_id,
+                    checked_in_at,
+                    can_vote,
+                    profiles!user_id (
+                        full_name,
+                        email,
+                        member_category
+                    )
+                `)
+
+                .eq('assembly_id', assemblyId)
+                .order('checked_in_at', { ascending: true })
+
+            if (error) throw error
+            setAttendanceRecords(data || [])
+        } catch (err: any) {
+            toast.error("Erro ao carregar presenças", { description: err.message })
+            logSystemError(err, 'Admin.fetchAssemblyAttendance', profile?.id)
+        } finally {
+            setIsLoadingAttendance(false)
+        }
+    }
+
+    // Toggle voting rights for an attendee
+    const handleToggleVotingRights = async (attendanceId: string, currentCanVote: boolean) => {
+        try {
+            const { error } = await supabase
+                .from('assembly_attendances')
+                .update({ can_vote: !currentCanVote })
+                .eq('id', attendanceId)
+
+            if (error) throw error
+
+            // Update local state
+            setAttendanceRecords(prev =>
+                prev.map(rec =>
+                    rec.id === attendanceId
+                        ? { ...rec, can_vote: !currentCanVote }
+                        : rec
+                )
+            )
+
+            toast.success(`Direito a voto ${!currentCanVote ? 'concedido' : 'revogado'}`)
+        } catch (err: any) {
+            toast.error("Erro ao atualizar direito de voto")
+            logSystemError(err, 'Admin.handleToggleVotingRights', profile?.id)
+        }
+    }
 
     const handleCreateAssembly = async () => {
         try {
@@ -396,6 +604,7 @@ export default function Admin() {
             toast.success("Assembleia agendada com sucesso!")
         } catch (err: any) {
             toast.error("Erro ao criar assembleia", { description: err.message })
+            logSystemError(err, 'Admin.handleCreateAssembly', profile?.id)
         }
     }
 
@@ -421,10 +630,55 @@ export default function Admin() {
             setCandidaturas(prev =>
                 prev.map(c => c.id === id ? { ...c, status: previousStatus || 'submitted' } : c)
             )
+            logSystemError(err, 'Admin.handleStatusChange', profile?.id)
+        }
+    }
+
+    const [isResetting, setIsResetting] = useState(false)
+
+    const handleResetSystem = async () => {
+        if (!confirm("⚠️ ATENÇÃO: Esta ação irá apagar TODAS as candidaturas, votos, presenças, logs e perfis de membros (mantendo apenas administradores). Deseja continuar?")) {
+            return
+        }
+
+        const password = prompt("Para confirmar a limpeza total da base de dados, digite 'RESETAR':")
+        if (password !== 'RESETAR') {
+            toast.error("Confirmação inválida. Operação cancelada.")
+            return
+        }
+
+        setIsResetting(true)
+        const toastId = toast.loading("Limpando base de dados...")
+
+        try {
+            // 1. Clear dynamic transactional data
+            await supabase.from('activity_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+            await supabase.from('votes').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+            await supabase.from('assembly_attendances').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+            await supabase.from('candidaturas').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+            await supabase.from('contact_messages').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+
+            // 2. Clear non-admin profiles
+            // Note: This might require RLS configuration or RPC for full cleanup
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .delete()
+                .neq('role', 'admin')
+
+            if (profileError) throw profileError
+
+            toast.success("Sistema resetado com sucesso!", { id: toastId })
+            window.location.reload()
+        } catch (error: any) {
+            console.error(error)
+            toast.error("Erro ao resetar sistema: " + error.message, { id: toastId })
+        } finally {
+            setIsResetting(false)
         }
     }
 
     const handleSaveTemplate = async () => {
+
         if (!editingTemplate) return
 
         try {
@@ -448,8 +702,32 @@ export default function Admin() {
             setEditingTemplate(null)
         } catch (err: any) {
             toast.error("Erro ao salvar template", { description: err.message })
+            logSystemError(err, 'Admin.handleSaveTemplate', profile?.id)
         }
     }
+
+    const handleSendTestEmail = async () => {
+        if (!editingTemplate || !profile?.email) return
+
+        const loadingToast = toast.loading("Enviando email de teste...")
+        try {
+            const res = await emailService.sendEmail({
+                to: profile.email,
+                subject: `[TESTE] ${editingTemplate.subject}`,
+                body: editingTemplate.body_markdown,
+                templateId: editingTemplate.id
+            })
+
+            toast.dismiss(loadingToast)
+            if (res.success) {
+                toast.success("Email de teste enviado!", { description: `Enviado para ${profile.email}` })
+            }
+        } catch (err: any) {
+            toast.dismiss(loadingToast)
+            toast.error("Erro ao enviar teste", { description: err.message })
+        }
+    }
+
 
     const handleExportCSV = () => {
         if (members.length === 0) {
@@ -466,21 +744,65 @@ export default function Admin() {
                 m.email,
                 m.nif || "",
                 m.phone || "",
-                m.role,
-                m.quota_status,
+                `"${m.role}"`,
+                `"${m.quota_status}"`,
                 m.created_at
-            ].join(","))
+            ].map(field => (typeof field === 'string' && field.includes(',')) ? `"${field}"` : field).join(","))
         ].join("\n")
 
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+        const link = document.body.appendChild(document.createElement("a"))
         const url = URL.createObjectURL(blob)
-        const link = document.createElement("a")
-        link.setAttribute("href", url)
-        link.setAttribute("download", `associados_bureau_${new Date().toISOString().split('T')[0]}.csv`)
-        document.body.appendChild(link)
+        link.href = url
+        link.download = `associados_bureau_${new Date().toISOString().split('T')[0]}.csv`
         link.click()
         document.body.removeChild(link)
     }
+
+    const handleCreateEvent = async () => {
+        if (!newEvent.title || !newEvent.date) {
+            toast.error("Título e data são obrigatórios")
+            return
+        }
+        try {
+            const { data, error } = await supabase
+                .from('events')
+                .insert([newEvent])
+                .select()
+                .single()
+            if (error) throw error
+            setEvents([data, ...events])
+            setIsCreatingEvent(false)
+            setNewEvent({ title: '', description: '', date: '', location: '', category: 'social', image_url: '' })
+            toast.success("Evento criado com sucesso!")
+        } catch (err: any) {
+            toast.error("Erro ao criar evento")
+            logSystemError(err, 'Admin.handleCreateEvent', profile?.id)
+        }
+    }
+
+    const handleCreateProject = async () => {
+        if (!newProject.title) {
+            toast.error("Título é obrigatório")
+            return
+        }
+        try {
+            const { data, error } = await supabase
+                .from('projects')
+                .insert([newProject])
+                .select()
+                .single()
+            if (error) throw error
+            setProjects([data, ...projects])
+            setIsCreatingProject(false)
+            setNewProject({ title: '', description: '', goal: 100 })
+            toast.success("Votação criada com sucesso!")
+        } catch (err: any) {
+            toast.error("Erro ao criar votação")
+            logSystemError(err, 'Admin.handleCreateProject', profile?.id)
+        }
+    }
+
 
     const containerVariants = {
         hidden: { opacity: 0 },
@@ -565,7 +887,8 @@ export default function Admin() {
             </div>
 
             {/* Tabs Content */}
-            <Tabs defaultValue="candidaturas" className="space-y-8">
+            <Tabs defaultValue={currentTab} value={currentTab} onValueChange={(val) => navigate(`/admin?tab=${val}`)} className="space-y-8">
+
                 <TabsList className="bg-heritage-sand/30 dark:bg-zinc-900 p-2 rounded-[20px]">
                     <TabsTrigger value="candidaturas" className="rounded-2xl px-6 py-3 font-bold text-sm data-[state=active]:bg-heritage-navy data-[state=active]:text-white dark:data-[state=active]:bg-heritage-gold dark:data-[state=active]:text-heritage-navy">
                         <LucideFileText className="w-4 h-4 mr-2" />
@@ -583,11 +906,30 @@ export default function Admin() {
                         <LucideGavel className="w-4 h-4 mr-2" />
                         Assembleias
                     </TabsTrigger>
+                    <TabsTrigger value="events" className="rounded-2xl px-6 py-3 font-bold text-sm data-[state=active]:bg-heritage-navy data-[state=active]:text-white dark:data-[state=active]:bg-heritage-gold dark:data-[state=active]:text-heritage-navy">
+                        <LucideCalendar className="w-4 h-4 mr-2" />
+                        Eventos
+                    </TabsTrigger>
+                    <TabsTrigger value="projects" className="rounded-2xl px-6 py-3 font-bold text-sm data-[state=active]:bg-heritage-navy data-[state=active]:text-white dark:data-[state=active]:bg-heritage-gold dark:data-[state=active]:text-heritage-navy">
+                        <LucideVote className="w-4 h-4 mr-2" />
+                        Votações
+                    </TabsTrigger>
                     <TabsTrigger value="config" className="rounded-2xl px-6 py-3 font-bold text-sm data-[state=active]:bg-heritage-navy data-[state=active]:text-white dark:data-[state=active]:bg-heritage-gold dark:data-[state=active]:text-heritage-navy">
                         <LucideSettings className="w-4 h-4 mr-2" />
                         Configurações
                     </TabsTrigger>
+
+                    <TabsTrigger value="logs" className="rounded-2xl px-6 py-3 font-bold text-sm data-[state=active]:bg-heritage-navy data-[state=active]:text-white dark:data-[state=active]:bg-heritage-gold dark:data-[state=active]:text-heritage-navy">
+                        <LucideShield className="w-4 h-4 mr-2" />
+                        Logs Sistema
+                    </TabsTrigger>
                 </TabsList>
+
+
+                <TabsContent value="logs">
+                    <AdminLogs />
+                </TabsContent>
+
 
                 <TabsContent value="candidaturas" className="space-y-4">
                     <Card className="rounded-[32px] border-none shadow-sm glass-card overflow-hidden">
@@ -651,7 +993,14 @@ export default function Admin() {
                                                             <div className="space-y-1">
                                                                 <h4 className="font-bold text-heritage-navy dark:text-white">{nome}</h4>
                                                                 <p className="text-sm text-heritage-navy/40 dark:text-white/30">{oficio}</p>
-                                                                <p className="text-xs text-heritage-navy/20 dark:text-white/20">{email}</p>
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="text-xs text-heritage-navy/20 dark:text-white/20">{email}</p>
+                                                                    {candidatura.type && (
+                                                                        <Badge variant="outline" className="text-[10px] uppercase font-bold border-heritage-navy/20 text-heritage-navy/60 h-5 px-1.5 ml-2">
+                                                                            {candidatura.type}
+                                                                        </Badge>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         </div>
 
@@ -669,6 +1018,7 @@ export default function Admin() {
                                                                     variant="ghost"
                                                                     className="h-10 w-10 p-0 rounded-xl hover:bg-heritage-ocean/20 hover:scale-105 active:scale-95 transition-transform"
                                                                     title="Ver detalhes"
+                                                                    onClick={() => navigate(`/candidatura/${candidatura.id}`)}
                                                                 >
                                                                     <LucideEye className="w-4 h-4 text-heritage-ocean" />
                                                                 </Button>
@@ -893,27 +1243,33 @@ export default function Admin() {
                 <TabsContent value="emails" className="space-y-6">
                     <div className="grid md:grid-cols-2 gap-6">
                         {/* List of Templates */}
-                        <div className="space-y-4">
+                        <motion.div
+                            variants={containerVariants}
+                            initial="hidden"
+                            animate="show"
+                            className="space-y-4"
+                        >
                             {emailTemplates.map(template => (
-                                <Card
-                                    key={template.id}
-                                    className={`cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] border-none shadow-sm ${editingTemplate?.id === template.id ? 'ring-2 ring-heritage-terracotta' : ''}`}
-                                    onClick={() => setEditingTemplate(template)}
-                                >
-                                    <CardHeader className="p-6">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <CardTitle className="text-lg font-bold text-heritage-navy dark:text-white mb-2">{template.subject}</CardTitle>
-                                                <CardDescription className="text-heritage-navy/40 dark:text-white/40 text-xs uppercase tracking-wider font-bold">
-                                                    ID: {template.id}
-                                                </CardDescription>
+                                <motion.div key={template.id} variants={itemVariants}>
+                                    <Card
+                                        className={`cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] border-none shadow-sm ${editingTemplate?.id === template.id ? 'ring-2 ring-heritage-terracotta' : ''}`}
+                                        onClick={() => setEditingTemplate(template)}
+                                    >
+                                        <CardHeader className="p-6">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <CardTitle className="text-lg font-bold text-heritage-navy dark:text-white mb-2">{template.subject}</CardTitle>
+                                                    <CardDescription className="text-heritage-navy/40 dark:text-white/40 text-xs uppercase tracking-wider font-bold">
+                                                        ID: {template.id}
+                                                    </CardDescription>
+                                                </div>
+                                                <LucideEdit className="w-4 h-4 text-heritage-navy/40" />
                                             </div>
-                                            <LucideEdit className="w-4 h-4 text-heritage-navy/40" />
-                                        </div>
-                                    </CardHeader>
-                                </Card>
+                                        </CardHeader>
+                                    </Card>
+                                </motion.div>
                             ))}
-                        </div>
+                        </motion.div>
 
                         {/* Editor */}
                         <Card className="border-none shadow-lg glass-card h-fit">
@@ -942,10 +1298,17 @@ export default function Admin() {
                                                 className="min-h-[300px] font-mono text-sm leading-relaxed"
                                             />
                                         </div>
-                                        <Button onClick={handleSaveTemplate} className="w-full bg-heritage-navy hover:bg-heritage-navy/90 text-white font-bold h-12 rounded-xl">
-                                            <LucideSave className="w-4 h-4 mr-2" />
-                                            Salvar Alterações
-                                        </Button>
+                                        <div className="flex gap-3">
+                                            <Button onClick={handleSaveTemplate} className="flex-1 bg-heritage-navy hover:bg-heritage-navy/90 text-white font-bold h-12 rounded-xl">
+                                                <LucideSave className="w-4 h-4 mr-2" />
+                                                Salvar Alterações
+                                            </Button>
+                                            <Button onClick={handleSendTestEmail} variant="outline" className="px-6 border-heritage-navy/10 hover:bg-heritage-sand/50 h-12 rounded-xl font-bold">
+                                                <LucideMail className="w-4 h-4 mr-2" />
+                                                Enviar Teste
+                                            </Button>
+                                        </div>
+
                                     </>
                                 ) : (
                                     <div className="h-[400px] flex flex-col items-center justify-center text-center p-8 opacity-40">
@@ -973,77 +1336,84 @@ export default function Admin() {
                         </Button>
                     </div>
 
-                    <div className="grid gap-6">
-                        {assemblies.map(assembly => (
-                            <Card key={assembly.id} className="glass-card border-none shadow-sm overflow-hidden group">
-                                <CardHeader className="p-6 flex flex-row items-start justify-between">
-                                    <div className="flex items-start gap-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-heritage-navy/5 dark:bg-white/10 flex flex-col items-center justify-center text-heritage-navy dark:text-white">
-                                            <span className="text-[10px] uppercase font-bold text-heritage-navy/40 dark:text-white/40">
-                                                {new Date(assembly.date).toLocaleDateString('pt-PT', { month: 'short' })}
-                                            </span>
-                                            <span className="text-xl font-black leading-none">
-                                                {new Date(assembly.date).getDate()}
-                                            </span>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <CardTitle className="text-xl font-bold text-heritage-navy dark:text-white">{assembly.title}</CardTitle>
-                                            <div className="flex items-center gap-4 text-sm text-heritage-navy/60 dark:text-white/50">
-                                                <span className="flex items-center gap-1.5">
-                                                    <LucideCalendar className="w-3.5 h-3.5" />
-                                                    {new Date(assembly.date).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+                    <motion.div
+                        variants={containerVariants}
+                        initial="hidden"
+                        animate="show"
+                        className="grid gap-4"
+                    >
+                        {assemblies.map((assembly) => (
+                            <motion.div key={assembly.id} variants={itemVariants}>
+                                <Card className="rounded-[32px] border-none shadow-sm glass-card group hover:shadow-xl transition-all duration-500 overflow-hidden">
+                                    <CardHeader className="p-6 flex flex-row items-start justify-between">
+                                        <div className="flex items-start gap-4">
+                                            <div className="w-12 h-12 rounded-2xl bg-heritage-navy/5 dark:bg-white/10 flex flex-col items-center justify-center text-heritage-navy dark:text-white">
+                                                <span className="text-[10px] uppercase font-bold text-heritage-navy/40 dark:text-white/40">
+                                                    {new Date(assembly.date).toLocaleDateString('pt-PT', { month: 'short' })}
                                                 </span>
-                                                <span className="flex items-center gap-1.5">
-                                                    <LucideGavel className="w-3.5 h-3.5" />
-                                                    {assembly.location}
+                                                <span className="text-xl font-black leading-none">
+                                                    {new Date(assembly.date).getDate()}
                                                 </span>
                                             </div>
+                                            <div className="space-y-1">
+                                                <CardTitle className="text-xl font-bold text-heritage-navy dark:text-white">{assembly.title}</CardTitle>
+                                                <div className="flex items-center gap-4 text-sm text-heritage-navy/60 dark:text-white/50">
+                                                    <span className="flex items-center gap-1.5">
+                                                        <LucideCalendar className="w-3.5 h-3.5" />
+                                                        {new Date(assembly.date).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                    <span className="flex items-center gap-1.5">
+                                                        <LucideGavel className="w-3.5 h-3.5" />
+                                                        {assembly.location}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <Badge variant={
-                                        assembly.status === 'open_for_voting' ? 'destructive' :
-                                            assembly.status === 'completed' ? 'secondary' : 'default'
-                                    } className="uppercase text-[10px] tracking-wider">
-                                        {assembly.status === 'open_for_voting' ? 'Votação Aberta' :
-                                            assembly.status === 'completed' ? 'Concluída' : 'Agendada'}
-                                    </Badge>
-                                </CardHeader>
-                                <CardContent className="p-6 pt-0 flex gap-3">
-                                    <Button
-                                        variant="outline"
-                                        className="flex-1 rounded-xl border-heritage-navy/10 hover:bg-heritage-sand/50"
-                                        onClick={() => handleOpenAgenda(assembly)}
-                                    >
-                                        <LucideEdit className="w-4 h-4 mr-2" />
-                                        Editar Pauta
-                                    </Button>
-                                    <Button
-                                        variant="secondary"
-                                        className="flex-1 rounded-xl bg-heritage-sand dark:bg-zinc-800"
-                                        onClick={() => handleOpenSessionControl(assembly)}
-                                    >
-                                        <LucideVote className="w-4 h-4 mr-2" />
-                                        Gerir Sessão
-                                    </Button>
-                                </CardContent>
-                            </Card>
+                                        <Badge variant={
+                                            assembly.status === 'open_for_voting' ? 'destructive' :
+                                                assembly.status === 'completed' ? 'secondary' : 'default'
+                                        } className="uppercase text-[10px] tracking-wider">
+                                            {assembly.status === 'open_for_voting' ? 'Votação Aberta' :
+                                                assembly.status === 'completed' ? 'Concluída' : 'Agendada'}
+                                        </Badge>
+                                    </CardHeader>
+                                    <CardContent className="p-6 pt-0 flex gap-3">
+                                        <Button
+                                            variant="outline"
+                                            className="flex-1 rounded-xl border-heritage-navy/10 hover:bg-heritage-sand/50"
+                                            onClick={() => handleOpenAgenda(assembly)}
+                                        >
+                                            <LucideEdit className="w-4 h-4 mr-2" />
+                                            Editar Pauta
+                                        </Button>
+                                        <Button
+                                            variant="secondary"
+                                            className="flex-1 rounded-xl bg-heritage-sand dark:bg-zinc-800"
+                                            onClick={() => handleOpenSessionControl(assembly)}
+                                        >
+                                            <LucideVote className="w-4 h-4 mr-2" />
+                                            Gerir Sessão
+                                        </Button>
+                                    </CardContent>
+                                </Card>
+                            </motion.div>
                         ))}
+                    </motion.div>
 
-                        {assemblies.length === 0 && (
-                            <div className="p-12 text-center border-2 border-dashed border-heritage-navy/10 dark:border-white/10 rounded-[32px]">
-                                <LucideCalendar className="w-12 h-12 mx-auto text-heritage-navy/20 dark:text-white/20 mb-4" />
-                                <h3 className="font-bold text-heritage-navy dark:text-white text-lg">Nenhuma assembleia agendada</h3>
-                                <p className="text-heritage-navy/40 dark:text-white/30 mb-6">Crie uma nova assembleia para começar.</p>
-                                <Button
-                                    onClick={() => setIsCreatingAssembly(true)}
-                                    variant="outline"
-                                    className="rounded-xl"
-                                >
-                                    Agendar Agora
-                                </Button>
-                            </div>
-                        )}
-                    </div>
+                    {assemblies.length === 0 && (
+                        <div className="p-12 text-center border-2 border-dashed border-heritage-navy/10 dark:border-white/10 rounded-[32px]">
+                            <LucideCalendar className="w-12 h-12 mx-auto text-heritage-navy/20 dark:text-white/20 mb-4" />
+                            <h3 className="font-bold text-heritage-navy dark:text-white text-lg">Nenhuma assembleia agendada</h3>
+                            <p className="text-heritage-navy/40 dark:text-white/30 mb-6">Crie uma nova assembleia para começar.</p>
+                            <Button
+                                onClick={() => setIsCreatingAssembly(true)}
+                                variant="outline"
+                                className="rounded-xl"
+                            >
+                                Agendar Agora
+                            </Button>
+                        </div>
+                    )}
 
                     {/* Create Assembly Modal Overlay */}
                     <AnimatePresence>
@@ -1129,140 +1499,297 @@ export default function Admin() {
                     </AnimatePresence>
                 </TabsContent>
 
-                <TabsContent value="config" className="space-y-6">
-                    <Card className="rounded-[32px] border-none shadow-sm glass-card p-8">
-                        <CardHeader className="p-0 pb-6">
-                            <CardTitle className="text-xl font-black text-heritage-navy dark:text-white">
-                                Configurações do Sistema
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-0 space-y-6">
-                            <div className="p-6 rounded-2xl bg-heritage-success/10 dark:bg-zinc-900/50 space-y-3">
-                                <h4 className="font-bold text-heritage-navy dark:text-white flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-heritage-success"></div>
-                                    Modo de Produção
-                                </h4>
-                                <p className="text-sm text-heritage-navy/40 dark:text-white/30">
-                                    O sistema está conectado ao Supabase Real.
-                                    Todas as candidaturas e uploads são persistidos na nuvem.
-                                </p>
+                <TabsContent value="events" className="space-y-6">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-2xl font-black text-heritage-navy dark:text-white">Gestão de Eventos</h3>
+                        <Button onClick={() => setIsCreatingEvent(true)} className="bg-heritage-navy text-white rounded-xl font-bold">
+                            <LucidePlus className="w-4 h-4 mr-2" /> Novo Evento
+                        </Button>
+                    </div>
+
+                    <div className="grid gap-4">
+                        {events.length === 0 ? (
+                            <div className="text-center py-20 glass-card rounded-3xl">
+                                <LucideCalendar className="w-12 h-12 mx-auto mb-4 text-heritage-navy/20" />
+                                <p className="text-heritage-navy/40">Nenhum evento criado</p>
                             </div>
-                            <div className="p-6 rounded-2xl bg-heritage-sand/20 dark:bg-zinc-900/50 space-y-3">
-                                <h4 className="font-bold text-heritage-navy dark:text-white">Ambiente</h4>
-                                <p className="text-sm text-heritage-navy/40 dark:text-white/30">
-                                    Versão do App: <code className="bg-heritage-navy/10 dark:bg-white/10 px-2 py-1 rounded text-xs">v0.5-beta</code>
-                                </p>
-                            </div>
-                        </CardContent>
-                    </Card>
+                        ) : (
+                            events.map(event => (
+                                <Card key={event.id} className="glass-card rounded-[24px] border-none p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+                                    <div className="flex items-center gap-6">
+                                        <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0">
+                                            <img src={event.image_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=200'} className="w-full h-full object-cover" />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-heritage-navy dark:text-white">{event.title}</h4>
+                                            <p className="text-xs text-heritage-navy/40 dark:text-white/40 flex items-center gap-2 mt-1">
+                                                <LucideCalendar className="w-3 h-3" /> {new Date(event.date).toLocaleDateString('pt-PT')}
+                                                <LucideMapPin className="w-3 h-3 ml-2" /> {event.location}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <Badge variant="outline" className="uppercase text-[9px] tracking-widest">{event.category}</Badge>
+                                </Card>
+                            ))
+                        )}
+                    </div>
                 </TabsContent>
+
+                <TabsContent value="projects" className="space-y-6">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-2xl font-black text-heritage-navy dark:text-white">Gestão de Votações</h3>
+                        <Button onClick={() => setIsCreatingProject(true)} className="bg-heritage-navy text-white rounded-xl font-bold">
+                            <LucidePlus className="w-4 h-4 mr-2" /> Nova Votação
+                        </Button>
+                    </div>
+
+                    <div className="grid gap-4">
+                        {projects.length === 0 ? (
+                            <div className="text-center py-20 glass-card rounded-3xl">
+                                <LucideVote className="w-12 h-12 mx-auto mb-4 text-heritage-navy/20" />
+                                <p className="text-heritage-navy/40">Nenhuma votação configurada</p>
+                            </div>
+                        ) : (
+                            projects.map(project => (
+                                <Card key={project.id} className="glass-card rounded-[24px] border-none p-6 flex justify-between items-center">
+                                    <div className="flex items-center gap-6">
+                                        <div className="w-12 h-12 rounded-2xl bg-heritage-navy/5 flex items-center justify-center text-heritage-navy">
+                                            <LucideVote className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-heritage-navy dark:text-white">{project.title}</h4>
+                                            <div className="flex items-center gap-4 mt-1">
+                                                <span className="text-xs font-bold text-heritage-navy/40">{project.votes} votos</span>
+                                                <div className="h-1.5 w-24 bg-heritage-navy/10 rounded-full overflow-hidden">
+                                                    <div className="h-full bg-heritage-gold" style={{ width: `${Math.min((project.votes / project.goal) * 100, 100)}%` }} />
+                                                </div>
+                                                <span className="text-[10px] text-heritage-navy/40">Meta: {project.goal}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <Button variant="ghost" size="icon" className="rounded-full">
+                                        <LucideEdit className="w-4 h-4" />
+                                    </Button>
+                                </Card>
+                            ))
+                        )}
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="config" className="space-y-6">
+                    <div className="grid md:grid-cols-2 gap-6">
+                        {/* System Status */}
+                        <Card className="rounded-[32px] border-none shadow-sm glass-card overflow-hidden">
+                            <CardHeader className="bg-heritage-navy dark:bg-zinc-800 text-white p-6">
+                                <CardTitle className="text-xl font-black flex items-center gap-3">
+                                    <LucideCpu className="w-6 h-6 text-heritage-gold" />
+                                    Núcleo do Sistema
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-8 space-y-6">
+                                <div className="p-6 rounded-2xl flex items-start gap-4 bg-heritage-navy/5 dark:bg-white/5 border border-heritage-navy/10 dark:border-white/10">
+                                    <div className="w-3 h-3 rounded-full mt-1.5 bg-heritage-success animate-pulse" />
+                                    <div>
+                                        <h4 className="font-bold text-heritage-navy dark:text-white">
+                                            Sistema Online (Produção)
+                                        </h4>
+                                        <p className="text-sm text-heritage-navy/60 dark:text-white/40 mt-1">
+                                            O sistema está conectado ao cluster oficial do Supabase. Todos os dados são reais e persistentes.
+                                        </p>
+                                    </div>
+                                </div>
+
+
+
+                                <div className="pt-4 border-t border-heritage-navy/5 dark:border-white/5 space-y-4">
+                                    <div className="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl space-y-4">
+                                        <div className="flex items-center gap-3 text-red-500">
+                                            <LucideAlertTriangle className="w-5 h-5" />
+                                            <span className="text-sm font-black uppercase tracking-tighter">Zona de Perigo</span>
+                                        </div>
+                                        <p className="text-[10px] text-red-500/60 font-medium leading-relaxed">
+                                            A limpeza do sistema apaga todos os dados transacionais (candidaturas, votos, presenças) e remove perfis que não são administradores. Use com extrema cautela.
+                                        </p>
+                                        <Button
+                                            variant="destructive"
+                                            className="w-full rounded-[14px] bg-red-500 hover:bg-red-600 text-white font-bold h-10 text-xs transition-all"
+                                            onClick={handleResetSystem}
+                                            disabled={isResetting}
+                                        >
+                                            {isResetting ? <LucideLoader2 className="w-4 h-4 animate-spin mr-2" /> : <LucideTrash2 className="w-4 h-4 mr-2" />}
+                                            Limpar Base de Dados (Exceto Admins)
+                                        </Button>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* App Info & Stats */}
+                        <Card className="rounded-[32px] border-none shadow-sm glass-card overflow-hidden">
+                            <CardHeader className="p-8 pb-0">
+                                <CardTitle className="text-xl font-black text-heritage-navy dark:text-white flex items-center gap-3">
+                                    <LucideActivity className="w-6 h-6 text-heritage-terracotta" />
+                                    Informações Adicionais
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-8 space-y-6">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="p-4 bg-heritage-sand/20 dark:bg-white/5 rounded-[24px]">
+                                        <div className="text-[10px] font-black text-heritage-navy/30 uppercase tracking-widest mb-1">Versão</div>
+                                        <div className="text-lg font-black text-heritage-navy dark:text-white">v0.8.2-alpha</div>
+                                    </div>
+                                    <div className="p-4 bg-heritage-sand/20 dark:bg-white/5 rounded-[24px]">
+                                        <div className="text-[10px] font-black text-heritage-navy/30 uppercase tracking-widest mb-1">Build</div>
+                                        <div className="text-lg font-black text-heritage-navy dark:text-white">2026.01.17</div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-[10px] font-black text-heritage-navy/40 uppercase tracking-widest px-1">
+                                            <span>Uso de Armazenamento (Simulado)</span>
+                                            <span>24%</span>
+                                        </div>
+                                        <div className="h-2 bg-heritage-navy/5 dark:bg-white/5 rounded-full overflow-hidden">
+                                            <div className="h-full bg-heritage-terracotta w-[24%]" />
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-4 border-t border-heritage-navy/5 dark:border-white/5 space-y-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-xl bg-heritage-ocean/10 flex items-center justify-center text-heritage-ocean">
+                                                <LucideTerminal className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <div className="text-sm font-bold text-heritage-navy dark:text-white">API Endpoint</div>
+                                                <div className="text-[10px] text-heritage-navy/40 font-mono">/rest/v1/profiles</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-xl bg-heritage-gold/10 flex items-center justify-center text-heritage-gold">
+                                                <LucideShield className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <div className="text-sm font-bold text-heritage-navy dark:text-white">Segurança RLS</div>
+                                                <div className="text-[10px] text-heritage-success font-bold uppercase">Ativa por Tabela</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </TabsContent>
+
             </Tabs>
             {/* Agenda Editor Overlay */}
             <AnimatePresence>
-                {isAgendaEditorOpen && editingAssembly && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setIsAgendaEditorOpen(false)}
-                            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="relative w-full max-w-2xl bg-white dark:bg-zinc-900 rounded-[32px] shadow-2xl p-8 overflow-hidden max-h-[90vh] flex flex-col"
-                        >
-                            <div className="flex justify-between items-start mb-6">
-                                <div>
-                                    <h3 className="text-2xl font-black text-heritage-navy dark:text-white">Gerir Pauta</h3>
-                                    <p className="text-heritage-navy/50 dark:text-white/40">{editingAssembly.title}</p>
-                                </div>
-                                <Button variant="ghost" size="icon" onClick={() => setIsAgendaEditorOpen(false)} className="rounded-full">
-                                    <LucideX className="w-5 h-5" />
-                                </Button>
-                            </div>
-
-                            <div className="flex-1 overflow-y-auto space-y-6 pr-2">
-                                {/* Add New Item Form */}
-                                <div className="p-4 bg-heritage-sand/20 dark:bg-zinc-800/50 rounded-2xl space-y-4">
-                                    <h4 className="font-bold text-sm uppercase text-heritage-navy/60 dark:text-white/50">Adicionar Novo Item</h4>
-                                    <div className="grid md:grid-cols-[2fr_1fr] gap-4">
-                                        <Input
-                                            placeholder="Título do Item / Assunto"
-                                            value={newItem.title}
-                                            onChange={e => setNewItem({ ...newItem, title: e.target.value })}
-                                            className="bg-white dark:bg-zinc-900 border-none rounded-xl"
-                                        />
-                                        <select
-                                            className="bg-white dark:bg-zinc-900 border-none rounded-xl px-3 text-sm font-medium h-10"
-                                            value={newItem.type}
-                                            onChange={e => setNewItem({ ...newItem, type: e.target.value as any })}
-                                        >
-                                            <option value="discussion">Discussão</option>
-                                            <option value="voting_simple">Votação Simples</option>
-                                            <option value="election">Eleição</option>
-                                        </select>
+                {
+                    isAgendaEditorOpen && editingAssembly && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                onClick={() => setIsAgendaEditorOpen(false)}
+                                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                            />
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                                className="relative w-full max-w-2xl bg-white dark:bg-zinc-900 rounded-[32px] shadow-2xl p-8 overflow-hidden max-h-[90vh] flex flex-col"
+                            >
+                                <div className="flex justify-between items-start mb-6">
+                                    <div>
+                                        <h3 className="text-2xl font-black text-heritage-navy dark:text-white">Gerir Pauta</h3>
+                                        <p className="text-heritage-navy/50 dark:text-white/40">{editingAssembly.title}</p>
                                     </div>
-                                    <Textarea
-                                        placeholder="Descrição detalhada (opcional)"
-                                        value={newItem.description}
-                                        onChange={e => setNewItem({ ...newItem, description: e.target.value })}
-                                        className="bg-white dark:bg-zinc-900 border-none rounded-xl min-h-[80px]"
-                                    />
-                                    <Button onClick={handleAddItem} className="w-full bg-heritage-navy text-white font-bold rounded-xl">
-                                        <LucidePlus className="w-4 h-4 mr-2" />
-                                        Adicionar à Pauta
+                                    <Button variant="ghost" size="icon" onClick={() => setIsAgendaEditorOpen(false)} className="rounded-full">
+                                        <LucideX className="w-5 h-5" />
                                     </Button>
                                 </div>
 
-                                {/* Items List */}
-                                <div className="space-y-3">
-                                    <h4 className="font-bold text-sm uppercase text-heritage-navy/60 dark:text-white/50">Itens da Pauta ({assemblyItems.length})</h4>
-                                    {assemblyItems.length === 0 ? (
-                                        <div className="text-center p-8 text-heritage-navy/30 dark:text-white/30 italic">
-                                            Nenhum item na pauta ainda.
-                                        </div>
-                                    ) : (
-                                        assemblyItems.map((item, index) => (
-                                            <motion.div
-                                                key={item.id}
-                                                layout
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                className="p-4 bg-heritage-sand/10 dark:bg-zinc-800/30 rounded-2xl flex items-start gap-4 group"
+                                <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+                                    {/* Add New Item Form */}
+                                    <div className="p-4 bg-heritage-sand/20 dark:bg-zinc-800/50 rounded-2xl space-y-4">
+                                        <h4 className="font-bold text-sm uppercase text-heritage-navy/60 dark:text-white/50">Adicionar Novo Item</h4>
+                                        <div className="grid md:grid-cols-[2fr_1fr] gap-4">
+                                            <Input
+                                                placeholder="Título do Item / Assunto"
+                                                value={newItem.title}
+                                                onChange={e => setNewItem({ ...newItem, title: e.target.value })}
+                                                className="bg-white dark:bg-zinc-900 border-none rounded-xl"
+                                            />
+                                            <select
+                                                className="bg-white dark:bg-zinc-900 border-none rounded-xl px-3 text-sm font-medium h-10"
+                                                value={newItem.type}
+                                                onChange={e => setNewItem({ ...newItem, type: e.target.value as any })}
                                             >
-                                                <div className="w-8 h-8 rounded-full bg-heritage-navy/10 dark:bg-white/10 flex items-center justify-center font-black text-heritage-navy dark:text-white text-sm shrink-0">
-                                                    {index + 1}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <h5 className="font-bold text-heritage-navy dark:text-white truncate">{item.title}</h5>
-                                                        <Badge variant="outline" className="text-[10px] uppercase h-5">
-                                                            {item.type === 'voting_simple' ? 'Votação' : item.type === 'election' ? 'Eleição' : 'Discussão'}
-                                                        </Badge>
-                                                    </div>
-                                                    {item.description && (
-                                                        <p className="text-sm text-heritage-navy/60 dark:text-white/50 line-clamp-2">{item.description}</p>
-                                                    )}
-                                                </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => handleDeleteItem(item.id)}
-                                                    className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:bg-red-500/10 rounded-xl"
+                                                <option value="discussion">Discussão</option>
+                                                <option value="voting_simple">Votação Simples</option>
+                                                <option value="election">Eleição</option>
+                                            </select>
+                                        </div>
+                                        <Textarea
+                                            placeholder="Descrição detalhada (opcional)"
+                                            value={newItem.description}
+                                            onChange={e => setNewItem({ ...newItem, description: e.target.value })}
+                                            className="bg-white dark:bg-zinc-900 border-none rounded-xl min-h-[80px]"
+                                        />
+                                        <Button onClick={handleAddItem} className="w-full bg-heritage-navy text-white font-bold rounded-xl">
+                                            <LucidePlus className="w-4 h-4 mr-2" />
+                                            Adicionar à Pauta
+                                        </Button>
+                                    </div>
+
+                                    {/* Items List */}
+                                    <div className="space-y-3">
+                                        <h4 className="font-bold text-sm uppercase text-heritage-navy/60 dark:text-white/50">Itens da Pauta ({assemblyItems.length})</h4>
+                                        {assemblyItems.length === 0 ? (
+                                            <div className="text-center p-8 text-heritage-navy/30 dark:text-white/30 italic">
+                                                Nenhum item na pauta ainda.
+                                            </div>
+                                        ) : (
+                                            assemblyItems.map((item, index) => (
+                                                <motion.div
+                                                    key={item.id}
+                                                    layout
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    className="p-4 bg-heritage-sand/10 dark:bg-zinc-800/30 rounded-2xl flex items-start gap-4 group"
                                                 >
-                                                    <LucideTrash2 className="w-4 h-4" />
-                                                </Button>
-                                            </motion.div>
-                                        ))
-                                    )}
+                                                    <div className="w-8 h-8 rounded-full bg-heritage-navy/10 dark:bg-white/10 flex items-center justify-center font-black text-heritage-navy dark:text-white text-sm shrink-0">
+                                                        {index + 1}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <h5 className="font-bold text-heritage-navy dark:text-white truncate">{item.title}</h5>
+                                                            <Badge variant="outline" className="text-[10px] uppercase h-5">
+                                                                {item.type === 'voting_simple' ? 'Votação' : item.type === 'election' ? 'Eleição' : 'Discussão'}
+                                                            </Badge>
+                                                        </div>
+                                                        {item.description && (
+                                                            <p className="text-sm text-heritage-navy/60 dark:text-white/50 line-clamp-2">{item.description}</p>
+                                                        )}
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => handleDeleteItem(item.id)}
+                                                        className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:bg-red-500/10 rounded-xl"
+                                                    >
+                                                        <LucideTrash2 className="w-4 h-4" />
+                                                    </Button>
+                                                </motion.div>
+                                            ))
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
+                            </motion.div>
+                        </div>
+                    )
+                }
             </AnimatePresence>
 
             {/* Session Control Overlay */}
@@ -1332,52 +1859,241 @@ export default function Admin() {
                                         >
                                             <LucideCheckCircle2 className="w-4 h-4 mr-2" /> Concluída
                                         </Button>
-                                    </div>
-                                </div>
 
-                                {/* Results */}
-                                <div className="md:col-span-2 overflow-y-auto space-y-4 pl-2 h-full">
-                                    <div className="flex justify-between items-center">
-                                        <h4 className="font-bold text-sm uppercase text-heritage-navy/40">Resultados em Tempo Real</h4>
-                                        <Button size="sm" variant="ghost" onClick={() => handleOpenSessionControl(editingAssembly)}>
-                                            <LucideRefreshCw className="w-3 h-3 mr-1" /> Atualizar
-                                        </Button>
-                                    </div>
+                                        <div className="pt-6 border-t border-heritage-navy/10 dark:border-white/10 mt-6 space-y-4">
+                                            <h4 className="font-bold text-sm uppercase text-heritage-navy/40">Relatórios</h4>
+                                            <Button
+                                                onClick={handleGenerateMinutes}
+                                                variant="outline"
+                                                className="w-full justify-start rounded-xl border-heritage-ocean/30 text-heritage-ocean hover:bg-heritage-ocean/10"
+                                            >
+                                                <LucideFileText className="w-4 h-4 mr-2" /> Gerar Ata Automática
+                                            </Button>
 
-                                    {assemblyItems.map((item, i) => (
-                                        <div key={item.id} className="p-4 rounded-xl border border-heritage-navy/5 bg-heritage-sand/10">
-                                            <div className="flex justify-between mb-3">
-                                                <span className="font-bold text-heritage-navy dark:text-white max-w-[70%]">{i + 1}. {item.title}</span>
-                                                <Badge variant="outline">{item.type}</Badge>
-                                            </div>
-
-                                            {(item.type === 'voting_simple' || item.type === 'election') && liveStats[item.id] ? (
-                                                <div className="grid grid-cols-3 gap-2 text-center">
-                                                    <div className="p-2 rounded bg-heritage-success/10 text-heritage-success">
-                                                        <div className="text-xl font-black">{liveStats[item.id].approve}</div>
-                                                        <div className="text-[10px] uppercase font-bold">A Favor</div>
+                                            {editingAssembly.minutes_status && (
+                                                <div className="p-4 bg-heritage-ocean/5 rounded-xl border border-heritage-ocean/10 flex items-center justify-between">
+                                                    <div>
+                                                        <div className="text-[10px] font-black uppercase text-heritage-ocean">Status da Ata</div>
+                                                        <div className="text-xs font-bold text-heritage-navy dark:text-white">
+                                                            {editingAssembly.minutes_status === 'draft' ? 'Rascunho Gerado' : 'Publicada'}
+                                                        </div>
                                                     </div>
-                                                    <div className="p-2 rounded bg-red-500/10 text-red-500">
-                                                        <div className="text-xl font-black">{liveStats[item.id].reject}</div>
-                                                        <div className="text-[10px] uppercase font-bold">Contra</div>
-                                                    </div>
-                                                    <div className="p-2 rounded bg-gray-500/10 text-gray-500">
-                                                        <div className="text-xl font-black">{liveStats[item.id].abstain}</div>
-                                                        <div className="text-[10px] uppercase font-bold">Abst.</div>
-                                                    </div>
+                                                    <Badge className="bg-heritage-ocean text-white text-[10px]">VER</Badge>
                                                 </div>
-                                            ) : (
-                                                <p className="text-xs text-heritage-navy/40 italic">Item apenas para discussão.</p>
                                             )}
                                         </div>
-                                    ))}
+                                    </div>
+
+                                    {/* Results & Attendance */}
+                                    <div className="md:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden h-full">
+
+                                        {/* Column 2: Results */}
+                                        <div className="overflow-y-auto space-y-4 pl-2 h-full">
+                                            <div className="flex justify-between items-center sticky top-0 bg-white dark:bg-zinc-900 z-10 py-2">
+                                                <h4 className="font-bold text-sm uppercase text-heritage-navy/40">Resultados</h4>
+                                                <Button size="sm" variant="ghost" onClick={() => handleOpenSessionControl(editingAssembly)}>
+                                                    <LucideRefreshCw className="w-3 h-3 mr-1" /> Atualizar
+                                                </Button>
+                                            </div>
+
+                                            {assemblyItems.map((item, i) => (
+                                                <div key={item.id} className="p-4 rounded-xl border border-heritage-navy/5 bg-heritage-sand/10">
+                                                    <div className="flex justify-between mb-3">
+                                                        <span className="font-bold text-heritage-navy dark:text-white max-w-[70%]">{i + 1}. {item.title}</span>
+                                                        <Badge variant="outline">{item.type}</Badge>
+                                                    </div>
+
+                                                    {(item.type === 'voting_simple' || item.type === 'election') && liveStats[item.id] ? (
+                                                        <div className="grid grid-cols-3 gap-2 text-center">
+                                                            <div className="p-2 rounded bg-heritage-success/10 text-heritage-success">
+                                                                <div className="text-xl font-black">{liveStats[item.id].approve}</div>
+                                                                <div className="text-[10px] uppercase font-bold">A Favor</div>
+                                                            </div>
+                                                            <div className="p-2 rounded bg-red-500/10 text-red-500">
+                                                                <div className="text-xl font-black">{liveStats[item.id].reject}</div>
+                                                                <div className="text-[10px] uppercase font-bold">Contra</div>
+                                                            </div>
+                                                            <div className="p-2 rounded bg-gray-500/10 text-gray-500">
+                                                                <div className="text-xl font-black">{liveStats[item.id].abstain}</div>
+                                                                <div className="text-[10px] uppercase font-bold">Abst.</div>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-xs text-heritage-navy/40 italic">Item apenas para discussão.</p>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Column 3: Attendance */}
+                                        <div className="overflow-y-auto space-y-4 pl-2 h-full border-l border-heritage-navy/10 dark:border-white/10">
+                                            <div className="flex justify-between items-center sticky top-0 bg-white dark:bg-zinc-900 z-10 py-2 px-2">
+                                                <h4 className="font-bold text-sm uppercase text-heritage-navy/40">Presenças ({attendanceRecords.length})</h4>
+                                                {isLoadingAttendance && <LucideLoader2 className="w-4 h-4 animate-spin text-heritage-ocean" />}
+                                            </div>
+
+                                            <div className="space-y-2 p-2">
+                                                {attendanceRecords.length === 0 ? (
+                                                    <div className="text-center py-10 text-heritage-navy/40">
+                                                        <LucideUsers className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                                                        <p className="text-xs">Nenhum check-in registado</p>
+                                                    </div>
+                                                ) : (
+                                                    attendanceRecords.map((record) => (
+                                                        <div key={record.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-zinc-800/50 hover:bg-heritage-ocean/5 transition-colors group">
+                                                            <div className="min-w-0 flex-1 mr-4">
+                                                                <p className="font-bold text-sm text-heritage-navy dark:text-white truncate">
+                                                                    {record.profiles?.full_name || 'Usuário Desconhecido'}
+                                                                </p>
+                                                                <div className="flex items-center gap-2 mt-1">
+                                                                    <Badge variant="secondary" className="text-[9px] uppercase tracking-wider h-5 px-1.5">
+                                                                        {record.profiles?.member_category || 'Membro'}
+                                                                    </Badge>
+                                                                    <span className="text-[10px] text-heritage-navy/40 flex items-center gap-1">
+                                                                        <LucideClock className="w-3 h-3" />
+                                                                        {new Date(record.checked_in_at).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+
+                                                            <Button
+                                                                size="sm"
+                                                                variant={record.can_vote ? "default" : "destructive"}
+                                                                className={`h-8 w-8 p-0 rounded-lg ${record.can_vote ? 'bg-heritage-success hover:bg-heritage-success/90' : 'bg-red-500 hover:bg-red-600'}`}
+                                                                onClick={() => handleToggleVotingRights(record.id, record.can_vote)}
+                                                                title={record.can_vote ? "Pode Votar (Clique para revogar)" : "Direito Revogado (Clique para conceder)"}
+                                                            >
+                                                                {record.can_vote ? <LucideCheckCircle2 className="w-4 h-4" /> : <LucideX className="w-4 h-4" />}
+                                                            </Button>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>
                     </div>
-                )}
-            </AnimatePresence>
+                )
+                }
+            </AnimatePresence >
+
+            {/* Create Event Modal */}
+            <Dialog open={isCreatingEvent} onOpenChange={setIsCreatingEvent} >
+                <DialogContent className="sm:max-w-[500px] rounded-[32px] p-8">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl font-black text-heritage-navy">Novo Evento</DialogTitle>
+                        <DialogDescription>Crie um evento para a comunidade.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-6 py-4">
+                        <div className="space-y-2">
+                            <Label>Título</Label>
+                            <Input
+                                value={newEvent.title}
+                                onChange={e => setNewEvent({ ...newEvent, title: e.target.value })}
+                                placeholder="Ex: Workshop de Azulejaria"
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Data e Hora</Label>
+                                <Input
+                                    type="datetime-local"
+                                    value={newEvent.date}
+                                    onChange={e => setNewEvent({ ...newEvent, date: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Categoria</Label>
+                                <Select value={newEvent.category} onValueChange={v => setNewEvent({ ...newEvent, category: v })}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecione" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="social">Social</SelectItem>
+                                        <SelectItem value="cultura">Cultura</SelectItem>
+                                        <SelectItem value="formacao">Formação</SelectItem>
+                                        <SelectItem value="assembleia">Assembleia</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Localização</Label>
+                            <Input
+                                value={newEvent.location}
+                                onChange={e => setNewEvent({ ...newEvent, location: e.target.value })}
+                                placeholder="Ex: Sede Alfama"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>URL da Imagem</Label>
+                            <Input
+                                value={newEvent.image_url}
+                                onChange={e => setNewEvent({ ...newEvent, image_url: e.target.value })}
+                                placeholder="https://images.unsplash.com/..."
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Descrição</Label>
+                            <Textarea
+                                value={newEvent.description}
+                                onChange={e => setNewEvent({ ...newEvent, description: e.target.value })}
+                                placeholder="Descreva o evento..."
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setIsCreatingEvent(false)}>Cancelar</Button>
+                        <Button onClick={handleCreateEvent} className="bg-heritage-navy text-white">Criar Evento</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Create Project Modal */}
+            <Dialog open={isCreatingProject} onOpenChange={setIsCreatingProject} >
+                <DialogContent className="sm:max-w-[425px] rounded-[32px] p-8">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl font-black text-heritage-navy">Nova Votação / Projeto</DialogTitle>
+                        <DialogDescription>Adicione um projeto para votação pública.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-6 py-4">
+                        <div className="space-y-2">
+                            <Label>Título do Projeto</Label>
+                            <Input
+                                value={newProject.title}
+                                onChange={e => setNewProject({ ...newProject, title: e.target.value })}
+                                placeholder="Ex: Horta Comunitária"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Meta de Votos (Quorum)</Label>
+                            <Input
+                                type="number"
+                                value={newProject.goal}
+                                onChange={e => setNewProject({ ...newProject, goal: parseInt(e.target.value) })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Descrição</Label>
+                            <Textarea
+                                value={newProject.description}
+                                onChange={e => setNewProject({ ...newProject, description: e.target.value })}
+                                className="min-h-[100px]"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setIsCreatingProject(false)}>Cancelar</Button>
+                        <Button onClick={handleCreateProject} className="bg-heritage-navy text-white">Publicar Projeto</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
+
+
 

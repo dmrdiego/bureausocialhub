@@ -15,6 +15,11 @@ const isValidUrl = (url: string) => {
 }
 
 const useMock = !supabaseUrl || !supabaseAnonKey || !isValidUrl(supabaseUrl);
+// Modo Simulação Removido conforme solicitação
+
+
+
+
 
 if (useMock) {
     console.warn('⚠️ SUPABASE KEYS MISSING OR DEFAULT. RUNNING IN DEMONSTRATION MODE (MOCK DATA).');

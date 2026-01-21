@@ -46,6 +46,10 @@
     --heritage-ocean: 195 40% 45%;
     --heritage-sand: 40 33% 92%;
     --heritage-success: 150 40% 40%;
+
+    /* Fixed colors (don't flip in dark mode) */
+    --heritage-navy-fixed: 210 40% 15%;
+
   }
 
   .dark {
@@ -78,9 +82,10 @@
     --ring: 212.7 26.8% 83.9%;
 
     --heritage-navy: 210 40% 98%;
-    /* Inverse in dark mode for text */
+    /* Inverse in dark mode for text only */
     --heritage-sand: 222.2 84% 12%;
   }
+
 }
 
 @layer base {

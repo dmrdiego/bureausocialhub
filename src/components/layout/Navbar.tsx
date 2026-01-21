@@ -99,9 +99,10 @@ export default function Navbar() {
                         ) : (
                             <Link to="/auth">
                                 <Button variant="default" className="bg-heritage-terracotta hover:bg-heritage-terracotta/90 text-white rounded-xl px-6 h-11 font-black border-none text-[11px] uppercase tracking-widest shadow-lg shadow-heritage-terracotta/20 transition-apple hover:-translate-y-0.5 active:translate-y-0">
-                                    Login
+                                    Acesso Associado
                                 </Button>
                             </Link>
+
                         )}
                     </div>
 

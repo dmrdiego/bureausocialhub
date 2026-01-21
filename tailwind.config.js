@@ -43,12 +43,14 @@ export default {
         },
         heritage: {
           navy: 'hsl(var(--heritage-navy))',
+          'navy-fixed': 'hsl(var(--heritage-navy-fixed))',
           terracotta: 'hsl(var(--heritage-terracotta))',
           gold: 'hsl(var(--heritage-gold))',
           ocean: 'hsl(var(--heritage-ocean))',
           sand: 'hsl(var(--heritage-sand))',
           success: 'hsl(var(--heritage-success))',
         }
+
       },
       borderRadius: {
         lg: 'var(--radius)',

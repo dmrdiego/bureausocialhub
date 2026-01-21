@@ -3,36 +3,48 @@ const MOCK_DELAY = 500;
 
 // Initialize mock DB if empty
 const getDb = () => {
-    const db = localStorage.getItem('mock_db');
-    if (!db) {
-        const initial = {
-            profiles: [],
-            candidaturas: [],
-            votes: [],
-            projects: [ // Initial Projects Data
-                { id: "1", title: "Horta Urbana Comunitária", description: "Criação de uma horta vertical no pátio da Rua dos Froios para usufruto dos moradores.", votes: 45, goal: 100 },
-                { id: "2", title: "Workshop de Azulejaria", description: "Série de oficinas mensais abertas ao bairro para ensino de técnicas de restauro.", votes: 82, goal: 100 },
-                { id: "3", title: "Iluminação Eficiente", description: "Substituição das luzes das áreas comuns por sistemas LED de baixo consumo.", votes: 12, goal: 50 }
-            ],
-            contact_messages: []
-        };
-        localStorage.setItem('mock_db', JSON.stringify(initial));
-        return initial;
+    try {
+        const dbString = localStorage.getItem('mock_db');
+        if (!dbString || dbString === 'undefined') {
+            const initial = {
+                profiles: [],
+                candidaturas: [],
+                votes: [],
+                assembly_votes: [],
+                projects: [
+                    { id: "1", title: "Horta Urbana Comunitária", description: "Criação de uma horta vertical no pátio da Rua dos Froios para usufruto dos moradores.", votes: 45, goal: 100 },
+                    { id: "2", title: "Workshop de Azulejaria", description: "Série de oficinas mensais abertas ao bairro para ensino de técnicas de restauro.", votes: 82, goal: 100 },
+                    { id: "3", title: "Iluminação Eficiente", description: "Substituição das luzes das áreas comuns por sistemas LED de baixo consumo.", votes: 12, goal: 50 }
+                ],
+                assemblies: [
+                    { id: "asm_001", title: "Assembleia Geral Ordinária Q1 2026", date: new Date().toISOString(), status: 'open_for_voting' }
+                ],
+                assembly_items: [
+                    { id: "item_01", assembly_id: "asm_001", title: "Aprovação do Relatório de Contas 2025", description: "Discussão e votação do relatório financeiro do ano anterior.", type: "voting_simple", order_index: 0 },
+                    { id: "item_02", assembly_id: "asm_001", title: "Orçamento para Obras de Requalificação", description: "Aprovação do orçamento de 50.000€ para obras na sede social.", type: "voting_simple", order_index: 1 },
+                    { id: "item_03", assembly_id: "asm_001", title: "Eleição do Conselho Fiscal", description: "Eleição para o biénio 2026-2027.", type: "election", order_index: 2 }
+                ],
+                assembly_attendances: [],
+                events: [
+                    { id: "evt_001", title: "Workshop: Azulejaria Tradicional", description: "Aprenda as técnicas centenárias de pintura em azulejo com mestres artesãos.", date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), location: "Sede Alfama", category: "cultura", image_url: "https://images.unsplash.com/photo-1590487988256-9ed24133863e?auto=format&fit=crop&q=80&w=800" },
+                    { id: "evt_002", title: "Assembleia de Moradores", description: "Reunião mensal para discussão de questões do bairro.", date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), location: "Rua dos Froios", category: "social", image_url: "https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&q=80&w=800" },
+                    { id: "evt_003", title: "Feira de Artesanato Local", description: "Exposição e venda de produtos artesanais da comunidade.", date: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString(), location: "Praça do Bureau", category: "cultura", image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=800" }
+                ],
+                email_templates: [
+                    { id: 'candidature_approved', subject: 'Sua candidatura foi aprovada!', body_markdown: '# Parabéns!\n\nSua candidatura como associado foi aprovada pela direção.' },
+                    { id: 'candidature_rejected', subject: 'Atualização sobre sua candidatura', body_markdown: 'Lamentamos informar que sua candidatura não foi aprovada neste momento.' }
+                ],
+                activity_logs: []
+            };
+            localStorage.setItem('mock_db', JSON.stringify(initial));
+            return initial;
+        }
+        return JSON.parse(dbString);
+    } catch (e) {
+        console.error("Error parsing mock_db", e);
+        return { profiles: [], candidaturas: [], votes: [], assemblies: [], events: [], activity_logs: [] };
     }
-    return JSON.parse(db);
 };
-
-// Reset/Populate DB Helper (to fix existing localStorages)
-const ensureProjectsExist = (db: any) => {
-    if (!db.projects || db.projects.length === 0) {
-        db.projects = [
-            { id: "1", title: "Horta Urbana Comunitária", description: "Criação de uma horta vertical no pátio da Rua dos Froios para usufruto dos moradores.", votes: 45, goal: 100 },
-            { id: "2", title: "Workshop de Azulejaria", description: "Série de oficinas mensais abertas ao bairro para ensino de técnicas de restauro.", votes: 82, goal: 100 },
-            { id: "3", title: "Iluminação Eficiente", description: "Substituição das luzes das áreas comuns por sistemas LED de baixo consumo.", votes: 12, goal: 50 }
-        ]
-        saveDb(db)
-    }
-}
 
 const saveDb = (db: any) => {
     localStorage.setItem('mock_db', JSON.stringify(db));
@@ -40,185 +52,218 @@ const saveDb = (db: any) => {
 
 class MockQueryBuilder {
     private data: any[];
+    private isSingle: boolean = false;
+    private pendingOp: (() => Promise<any>) | null = null;
 
-    constructor(private table: string, initialData?: any[]) {
-        if (initialData) {
-            this.data = initialData;
-        } else {
-            const db = getDb();
-
-            // Ensure compatibility (Self-Healing)
-            if (table === 'projects') ensureProjectsExist(db);
-
-            // initialize table if not exists
-            if (!db[table]) {
-                db[table] = [];
-                saveDb(db);
-            }
-            this.data = [...db[table]];
+    constructor(private table: string) {
+        const db = getDb();
+        if (!db[table]) {
+            db[table] = [];
+            saveDb(db);
         }
+        this.data = [...db[table]];
     }
 
-    select(_columns: string = '*') {
-        // In a real query builder, select happens at the end or filters columns.
-        // For mock, we just return 'this' to allow chaining filters.
+    select(columns: string = '*') {
+        if (columns.includes('profiles')) {
+            const db = getDb();
+            this.data = this.data.map(row => {
+                if (row.user_id) {
+                    const profile = (db.profiles || []).find((p: any) => p.id === row.user_id);
+                    return { ...row, profiles: profile || null };
+                }
+                return row;
+            });
+        }
         return this;
     }
 
     eq(column: string, value: any) {
-        this.data = this.data.filter(row => row[column] === value);
+        this.data = this.data.filter(d => d[column] === value);
+        return this;
+    }
 
-        // Special case: If querying profiles and no user found, mock one for demo experience
-        if (this.table === 'profiles' && this.data.length === 0 && column === 'id' && value === 'mock-user-id') {
-            const mockProfile = {
-                id: value,
-                email: 'usuario@exemplo.com',
-                full_name: 'Administrador Demo',
-                role: 'admin',
-                quota_status: 'active',
-                quota_next_due: new Date().toISOString(),
-                member_category: 'fundador',
-                member_number: '001',
-                is_direction: true,
-                created_at: new Date().toISOString()
-            };
-            // Save this implicit profile to DB so updates work later
+    neq(column: string, value: any) {
+        this.data = this.data.filter(d => d[column] !== value);
+        return this;
+    }
+
+    order(column: string, { ascending = true }: { ascending?: boolean } = {}) {
+        this.data.sort((a, b) => {
+            if (a[column] < b[column]) return ascending ? -1 : 1;
+            if (a[column] > b[column]) return ascending ? 1 : -1;
+            return 0;
+        });
+        return this;
+    }
+
+    limit(n: number) {
+        this.data = this.data.slice(0, n);
+        return this;
+    }
+
+    insert(row: any) {
+        this.pendingOp = async () => {
+            const rows = Array.isArray(row) ? row : [row];
             const db = getDb();
-            if (!db.profiles) db.profiles = [];
-            db.profiles.push(mockProfile);
-            saveDb(db);
-            this.data = [mockProfile];
-        }
+            if (!db[this.table]) db[this.table] = [];
 
+            const newRows = rows.map(r => ({
+                id: r.id || Math.random().toString(36).substr(2, 9),
+                created_at: new Date().toISOString(),
+                ...r
+            }));
+
+            db[this.table].push(...newRows);
+
+            // Side effect for votes
+            if (this.table === 'votes' && db.projects) {
+                newRows.forEach(r => {
+                    const project = db.projects.find((p: any) => p.id === r.project_id);
+                    if (project) project.votes = (project.votes || 0) + 1;
+                });
+            }
+
+            saveDb(db);
+            return { data: newRows, error: null };
+        };
+        return this;
+    }
+
+    update(updates: any) {
+        this.pendingOp = async () => {
+            const db = getDb();
+            const idsToUpdate = this.data.map(d => d.id);
+            if (db[this.table]) {
+                db[this.table] = db[this.table].map((row: any) =>
+                    idsToUpdate.includes(row.id) ? { ...row, ...updates } : row
+                );
+                saveDb(db);
+            }
+            return { data: updates, error: null };
+        };
+        return this;
+    }
+
+    delete() {
+        this.pendingOp = async () => {
+            const db = getDb();
+            const idsToDelete = this.data.map(d => d.id);
+            if (db[this.table]) {
+                db[this.table] = db[this.table].filter((row: any) => !idsToDelete.includes(row.id));
+                saveDb(db);
+            }
+            return { data: null, error: null };
+        };
         return this;
     }
 
     single() {
-        return { data: this.data[0] || null, error: null };
+        this.isSingle = true;
+        return this;
     }
 
-    async insert(row: any) {
+    // This makes the class awaitable
+    async then(onfulfilled?: (value: any) => any) {
         await new Promise(resolve => setTimeout(resolve, MOCK_DELAY));
-        const db = getDb();
-        if (!db[this.table]) db[this.table] = [];
+        let res: any;
 
-        const newRow = {
-            id: Math.random().toString(36).substr(2, 9),
-            created_at: new Date().toISOString(),
-            ...row
-        };
-
-        db[this.table].push(newRow);
-
-        // TRIGGER: Update project vote count
-        if (this.table === 'votes') {
-            if (!db.projects) db.projects = []
-            const project = db.projects.find((p: any) => p.id === row.project_id);
-            if (project) {
-                project.votes += 1;
-                console.log(`[MOCK DB] Incremented votes for project ${project.title}`);
-            }
+        if (this.pendingOp) {
+            res = await this.pendingOp();
+            this.pendingOp = null;
+        } else {
+            res = { data: this.isSingle ? (this.data[0] || null) : this.data, error: null };
         }
 
-        saveDb(db);
-
-        console.log(`[MOCK DB] Inserted into ${this.table}:`, newRow);
-        return { data: newRow, error: null };
-    }
-
-    async update(updates: any) {
-        await new Promise(resolve => setTimeout(resolve, MOCK_DELAY));
-        const db = getDb();
-        if (!db[this.table]) return { data: null, error: 'Table not found' };
-
-        // updating rows that match current filters (this.data contains the filtered rows)
-        // We need to update them in the main DB
-        const idsToUpdate = this.data.map(d => d.id);
-
-        db[this.table] = db[this.table].map((row: any) => {
-            if (idsToUpdate.includes(row.id)) {
-                return { ...row, ...updates };
-            }
-            return row;
-        });
-
-        saveDb(db);
-        console.log(`[MOCK DB] Updated ${this.table} where IDs in:`, idsToUpdate);
-        return { data: updates, error: null };
-    }
-
-    // Support for promise-like usage (await supabase.from...)
-    then(callback: (res: any) => void) {
-        const res = { data: this.data, error: null };
-        callback(res);
-        return Promise.resolve(res);
+        if (onfulfilled) return onfulfilled(res);
+        return res;
     }
 }
 
 export const mockSupabase = {
     auth: {
         getSession: async () => {
-            const storedSession = localStorage.getItem('mock_session');
-            return { data: { session: storedSession ? JSON.parse(storedSession) : null }, error: null };
+            try {
+                const storedSession = localStorage.getItem('mock_session');
+                const session = storedSession && storedSession !== 'undefined' ? JSON.parse(storedSession) : null;
+                return { data: { session }, error: null };
+            } catch (e) {
+                return { data: { session: null }, error: null };
+            }
         },
-        onAuthStateChange: (_callback: any) => {
+        onAuthStateChange: (callback: any) => {
+            // Call callback immediately with current session to mimic real behavior better
+            setTimeout(async () => {
+                const { data: { session } } = await mockSupabase.auth.getSession();
+                callback('INITIAL_SESSION', session);
+            }, 0);
             return { data: { subscription: { unsubscribe: () => { } } } };
         },
         signInWithOtp: async ({ email }: { email: string }) => {
             console.log(`[MOCK AUTH] Login requested for ${email}`);
+
+            // Hardcoded Admin check
+            const isAdminEmail = email.toLowerCase() === 'dmrdiego@gmail.com';
+            const mockUserId = isAdminEmail ? 'admin-user-id' : 'mock-user-id';
+
             const mockSession = {
-                user: { id: 'mock-user-id', email },
+                user: { id: mockUserId, email },
                 access_token: 'mock-token',
-                expires_at: 9999999999
+                expires_at: Math.floor(Date.now() / 1000) + 3600
             };
             localStorage.setItem('mock_session', JSON.stringify(mockSession));
 
             // Ensure profile exists
             const db = getDb();
-            if (!db.profiles) db.profiles = [];
-            const existing = db.profiles.find((p: any) => p.id === 'mock-user-id');
+            let existing = (db.profiles || []).find((p: any) => p.email.toLowerCase() === email.toLowerCase());
+
             if (!existing) {
-                db.profiles.push({
-                    id: 'mock-user-id',
+                existing = {
+                    id: mockUserId,
                     email: email,
-                    full_name: 'Novo Usuário',
-                    role: 'pending', // Pending initially
-                    quota_status: 'inactive',
-                    member_category: 'contribuinte',
-                    member_number: null,
-                    is_direction: false,
+                    full_name: isAdminEmail ? 'Diego Rocha (Adm)' : 'Novo Usuário',
+                    role: isAdminEmail ? 'admin' : 'pending',
+                    quota_status: isAdminEmail ? 'active' : 'inactive',
                     created_at: new Date().toISOString()
-                });
-                saveDb(db);
+                };
+                if (!db.profiles) db.profiles = [];
+                db.profiles.push(existing);
+            } else if (isAdminEmail) {
+                // Ensure existing profile for this email is promoted to admin
+                existing.role = 'admin';
+                existing.quota_status = 'active';
             }
+
+            saveDb(db);
 
             window.location.href = '/dashboard';
             return { data: {}, error: null };
         },
+
         signOut: async () => {
             localStorage.removeItem('mock_session');
             window.location.href = '/auth';
             return { error: null };
         }
     },
-    from: (table: string) => {
-        return new MockQueryBuilder(table);
-    },
+    from: (table: string) => new MockQueryBuilder(table),
     storage: {
-        from: (_bucket: string) => ({
+        from: (bucket: string) => ({
             upload: async (path: string, _file: any) => {
                 await new Promise(resolve => setTimeout(resolve, MOCK_DELAY));
-                console.log(`[MOCK STORAGE] Uploaded to ${_bucket}/${path}`);
-                // In a real app we would save the file. Here we just pretend.
+                console.log(`[MOCK STORAGE] Uploaded to ${bucket}/${path}`);
                 return { data: { path }, error: null };
             },
-            getPublicUrl: (path: string) => {
-                // Generate a visual placeholder using the filename text
-                const filename = path.split('/').pop() || 'image';
-                return {
-                    data: { publicUrl: `https://placehold.co/600x400?text=${filename}` }
-                };
-            }
+
+            getPublicUrl: (path: string) => ({
+                data: { publicUrl: `https://placehold.co/600x400?text=${path.split('/').pop()}` }
+            })
         })
+    },
+    functions: {
+        invoke: async (name: string) => {
+            console.log(`[MOCK FUNCTION] Invoked: ${name}`);
+            return { data: { success: true }, error: null };
+        }
     }
 };

@@ -1,12 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { LucideVote, LucideInfo, LucideCheck, LucideLoader2 } from "lucide-react"
+import { LucideVote, LucideInfo, LucideCheck, LucideLoader2, LucidePlus } from "lucide-react"
+
 import { motion } from "framer-motion"
 import { useAuth } from "@/context/AuthContext"
 import { supabase } from "@/lib/supabase"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+import { logSystemError } from "@/lib/errorLogger"
 
 export default function Voting() {
     const { user } = useAuth()
@@ -27,7 +29,7 @@ export default function Voting() {
                     .order('votes', { ascending: false }) // Show most popular first
 
                 if (projectsError) throw projectsError
-                if (projectsData) setProjects(projectsData)
+                setProjects(projectsData || [])
 
                 // Fetch User Votes
                 const { data: votesData, error: votesError } = await supabase
@@ -35,11 +37,13 @@ export default function Voting() {
                     .select('project_id')
                     .eq('user_id', user.id)
 
-                if (votesError) throw votesError
-                setUserVotes(votesData.map((v: { project_id: string }) => v.project_id))
-            } catch (error) {
+                if (votesError && votesError.code !== 'PGRST116') throw votesError
+                setUserVotes(votesData ? votesData.map((v: { project_id: string }) => v.project_id) : [])
+
+            } catch (error: any) {
                 console.error("Error fetching voting data:", error)
                 toast.error("Erro ao carregar votações")
+                logSystemError(error, 'Voting.fetchData', user?.id)
             } finally {
                 setLoading(false)
             }
@@ -58,7 +62,7 @@ export default function Voting() {
                 .insert({
                     user_id: user.id,
                     project_id: projectId,
-                    value: 1
+                    weight: 1
                 })
 
             if (error) throw error
@@ -75,6 +79,7 @@ export default function Voting() {
 
         } catch (error: any) {
             toast.error("Erro ao votar: " + error.message)
+            logSystemError(error, 'Voting.handleVote', user?.id)
         } finally {
             setVotingId(null)
         }
@@ -92,15 +97,26 @@ export default function Voting() {
                         Sua Voz, <br /><span className="text-heritage-gold">Nosso Futuro</span>.
                     </h1>
                 </div>
-                <div className="glass-card px-8 py-4 rounded-[32px] border-none shadow-sm flex items-center gap-4">
-                    <div className="w-10 h-10 bg-heritage-navy dark:bg-zinc-800 rounded-2xl flex items-center justify-center text-heritage-gold">
-                        <LucideVote className="w-5 h-5" />
+                <div className="flex flex-col md:flex-row gap-4">
+                    <div className="glass-card px-8 py-4 rounded-[32px] border-none shadow-sm flex items-center gap-4">
+                        <div className="w-10 h-10 bg-heritage-navy dark:bg-zinc-800 rounded-2xl flex items-center justify-center text-heritage-gold">
+                            <LucideVote className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <div className="text-xs font-black text-heritage-navy/40 dark:text-white/40 uppercase tracking-widest">Assembleia Geral</div>
+                            <div className="text-sm font-black text-heritage-navy dark:text-white transition-apple">Sessão 2026.01</div>
+                        </div>
                     </div>
-                    <div>
-                        <div className="text-xs font-black text-heritage-navy/40 dark:text-white/40 uppercase tracking-widest">Assembleia Geral</div>
-                        <div className="text-sm font-black text-heritage-navy dark:text-white transition-apple">Sessão 2026.01</div>
-                    </div>
+                    {user?.role === 'admin' && (
+                        <Button
+                            onClick={() => window.location.href = '/admin?tab=projects'}
+                            className="bg-heritage-navy dark:bg-zinc-800 rounded-[32px] font-black h-full px-8 uppercase tracking-widest text-[9px] text-white shadow-lg transition-apple hover:bg-heritage-gold hover:text-heritage-navy"
+                        >
+                            <LucidePlus className="w-4 h-4 mr-2" /> Gerir
+                        </Button>
+                    )}
                 </div>
+
             </div>
 
             {/* Voting Grid */}

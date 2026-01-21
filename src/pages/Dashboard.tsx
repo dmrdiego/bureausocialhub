@@ -136,7 +136,7 @@ export default function Dashboard() {
                             </div>
                         </div>
                         <Button
-                            onClick={() => navigate('/candidatura')}
+                            onClick={() => navigate(`/candidatura/${candidatura.id}`)}
                             variant="outline"
                             className="w-full md:w-auto px-8 h-14 rounded-2xl border-heritage-ocean/20 text-heritage-ocean font-black text-lg hover:bg-heritage-ocean/10 transition-all"
                         >
