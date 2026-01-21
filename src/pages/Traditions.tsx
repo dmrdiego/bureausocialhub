@@ -77,6 +77,24 @@ export default function Traditions() {
                 </div>
             </section>
 
+            {/* Introduction Section */}
+            <section className="px-6 pb-20">
+                <div className="max-w-4xl mx-auto glass-card p-10 md:p-16 rounded-[48px] border-none shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-heritage-terracotta/5 rounded-full blur-3xl -mr-32 -mt-32" />
+                    <div className="relative z-10 space-y-8">
+                        <h2 className="text-3xl font-black text-heritage-navy dark:text-white tracking-tight">Preservando a Nossa Herança</h2>
+                        <div className="space-y-6 text-lg text-heritage-navy/70 dark:text-white/50 font-medium leading-relaxed">
+                            <p>
+                                Portugal possui um rico património de ofícios tradicionais que representa séculos de conhecimento acumulado e transmitido de geração em geração. Estas profissões, que outrora constituíam a base da economia local, encontram-se hoje em risco de desaparecimento devido às transformações económicas e sociais das últimas décadas.
+                            </p>
+                            <p>
+                                O Programa Moradia Artesãos do Bureau Social visa preservar este património através da criação de condições para que os mestres destes ofícios possam continuar a exercer a sua atividade e transmitir os seus conhecimentos às novas gerações.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* Crafts Grid */}
             <section className="px-6 pb-32">
                 <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -132,61 +150,137 @@ export default function Traditions() {
                 </div>
             </section>
 
-            {/* Professions FAQ Section */}
+            {/* Categorized Professions Glossary Section */}
             <section className="px-6 pb-32">
-                <div className="max-w-4xl mx-auto space-y-12">
+                <div className="max-w-6xl mx-auto space-y-20">
                     <div className="text-center space-y-4">
-                        <h2 className="text-4xl font-black text-heritage-navy dark:text-white tracking-tight">
-                            Glossário de <span className="text-heritage-terracotta">Ofícios Tradicionais</span>
+                        <Badge variant="outline" className="border-heritage-gold/20 text-heritage-gold px-6 py-2 rounded-full uppercase text-[10px] font-black tracking-widest">Compêndio de Ofícios</Badge>
+                        <h2 className="text-4xl md:text-5xl font-black text-heritage-navy dark:text-white tracking-tight">
+                            Glossário de <span className="text-heritage-terracotta">Saberes Tradicionais</span>
                         </h2>
-                        <p className="text-heritage-navy/60 dark:text-white/40 font-medium">
-                            Conheça as competências que procuramos para a preservação da identidade de Lisboa.
+                        <p className="text-heritage-navy/60 dark:text-white/40 font-medium max-w-2xl mx-auto">
+                            Uma lista abrangente dos ofícios que compõem o ecossistema do Programa Moradia Artesãos.
                         </p>
                     </div>
 
-                    <div className="grid gap-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-16">
                         {[
                             {
-                                profession: "Mestre de Cantaria",
-                                description: "Especialista na talha, moldagem e aplicação de pedra lioz e granito. Essencial para a reabilitação de fachadas e pavimentos históricos."
+                                category: "1. Têxteis e Vestuário",
+                                professions: [
+                                    { name: "Alfaiate", desc: "Confecção de vestuário masculino por medida, dominando técnicas de corte e ajuste perfeito." },
+                                    { name: "Costureira / Modista", desc: "Confecção de vestuário feminino utilizando técnicas tradicionais de corte e costura." },
+                                    { name: "Bordadeira", desc: "Especialista em bordado manual: ponto cruz, ponto cheio, ponto de Arraiolos, etc." },
+                                    { name: "Tecelão / Tecelã", desc: "Operação de teares manuais para produzir tecidos, tapetes e mantas artesanais." },
+                                    { name: "Rendeira", desc: "Produção de rendas de bilros (Vila do Conde, Peniche) ou rendas de agulha." },
+                                    { name: "Tapeceiro", desc: "Produção de tapeçarias decorativas utilizando técnicas de tecelagem artística." },
+                                    { name: "Chapeleiro", desc: "Artesão especializado na produção de chapéus de feltro e modelos elaborados." }
+                                ]
                             },
                             {
-                                profession: "Azulejaria e Pintura Decorativa",
-                                description: "Estudo, preservação e criação de painéis de azulejos de alto valor artístico e cultural, respeitando as técnicas ancestrais."
+                                category: "2. Calçado e Couro",
+                                professions: [
+                                    { name: "Sapateiro", desc: "Produção e reparação de calçado, dominando o corte de couro e montagem manual." },
+                                    { name: "Marroquineiro", desc: "Produção de malas, carteiras e cintos através de técnicas artesanais em couro." },
+                                    { name: "Correeiro", desc: "Produção de arreios e equipamentos em couro para animais, forte tradição rural." },
+                                    { name: "Estofador", desc: "Revestimento de móveis utilizando técnicas tradicionais de trabalho com tecidos e couros." }
+                                ]
                             },
                             {
-                                profession: "Marcenaria de Casquinha",
-                                description: "Carpintaria de acabamentos em madeira de 'casquinha', típica dos interiores lisboetas. Recuperação de portadas e assoalhos."
+                                category: "3. Cerâmica e Olaria",
+                                professions: [
+                                    { name: "Oleiro", desc: "Trabalho do barro para peças utilitárias através de modelagem manual ou em roda." },
+                                    { name: "Ceramista", desc: "Produção artística em cerâmica com técnicas de modelagem e cozedura complexas." },
+                                    { name: "Azulejista", desc: "Produção e pintura de azulejos, arte identitária portuguesa desde o século XV." },
+                                    { name: "Pintor de Azulejos", desc: "Decoração manual de azulejos com motivos tradicionais ou contemporâneos." }
+                                ]
                             },
                             {
-                                profession: "Ferraria Artística",
-                                description: "Trabalho manual de ferro forjado para a restauração de varandins, portões e ornamentos típicos da arquitetura pombalina."
+                                category: "4. Madeira e Mobiliário",
+                                professions: [
+                                    { name: "Marceneiro", desc: "Produção de móveis especializados com técnicas de corte e assemblagem fina." },
+                                    { name: "Carpinteiro", desc: "Trabalho de madeira para construção, estruturas, portas e elementos arquitetónicos." },
+                                    { name: "Entalhador", desc: "Escultura decorativa em madeira através de técnicas de entalhe e cinzelagem." },
+                                    { name: "Torneiro de Madeira", desc: "Criação de peças cilíndricas e decorativas utilizando o torno manual." },
+                                    { name: "Cesteiro", desc: "Produção de cestos através do entrelaçamento de vime, palha ou cana." },
+                                    { name: "Restaurador", desc: "Recuperação de peças antigas devolvendo a aparência e funcionalidade originais." }
+                                ]
                             },
                             {
-                                profession: "Estucadores e Gessadores",
-                                description: "Técnicas de estuque ornamentado para tetos e paredes, fundamentais para a dignidade dos interiores monumentais."
+                                category: "5. Metais",
+                                professions: [
+                                    { name: "Ferreiro", desc: "Trabalho do ferro em forja para ferramentas e elementos decorativos artísticos." },
+                                    { name: "Serralheiro", desc: "Produção de grades, portões e estruturas metálicas em ferro ou aço." },
+                                    { name: "Caldeireiro", desc: "Produção de recipientes e utensílios metálicos através de moldagem e soldadura." },
+                                    { name: "Ourives", desc: "Trabalho de metais preciosos como ouro e prata para joias e objetos de valor." },
+                                    { name: "Joalheiro", desc: "Criação de joias combinando metais preciosos com pedras e outros materiais." },
+                                    { name: "Latoeiro", desc: "Trabalho do latão para produzir utensílios domésticos e objetos decorativos." },
+                                    { name: "Funileiro", desc: "Especialista em folha-de-flandres para recipientes e candeeiros tradicionais." }
+                                ]
                             },
                             {
-                                profession: "Cordoaria e Calafatagem",
-                                description: "Ofícios ligados à história marítima de Lisboa, mantendo vivas as técnicas de cordas e vedação de estruturas de madeira."
+                                category: "6. Pedra",
+                                professions: [
+                                    { name: "Canteiro", desc: "Trabalho da pedra para elementos arquitetónicos e esculturas através de talhe." },
+                                    { name: "Calceteiro", desc: "Colocação de calçada portuguesa utilizando calcário e basalto em padrões." },
+                                    { name: "Pedreiro Tradicional", desc: "Técnicas ancestrais de construção e restauro de edifícios históricos em pedra." }
+                                ]
+                            },
+                            {
+                                category: "7. Alimentação e Ervanária",
+                                professions: [
+                                    { name: "Ervanário", desc: "Conhecimento e utilização medicinal e aromática de plantas da flora portuguesa." },
+                                    { name: "Padeiro Tradicional", desc: "Produção de pão com fermentação natural e utilização de fornos a lenha." },
+                                    { name: "Confeiteiro / Doceiro", desc: "Produção de doces e bolos de raízes conventuais com receitas centenárias." },
+                                    { name: "Queijeiro", desc: "Produção artesanal de queijos através de técnicas tradicionais de cura." },
+                                    { name: "Salsicheiro", desc: "Produção de enchidos e charcutaria utilizando receitas tradicionais." }
+                                ]
+                            },
+                            {
+                                category: "8. Construção Tradicional",
+                                professions: [
+                                    { name: "Estucador", desc: "Trabalhos decorativos em estuque para ornamentos e acabamentos de teto." },
+                                    { name: "Caiador", desc: "Aplicação tradicional de cal para proteção e acabamento de paredes históricas." },
+                                    { name: "Telheiro", desc: "Produção e colocação de telhas com cerâmica de construção tradicional." },
+                                    { name: "Vidraceiro", desc: "Trabalho do vidro para vitrais e janelas com técnicas de moldagem manual." }
+                                ]
+                            },
+                            {
+                                category: "9. Outros Ofícios",
+                                professions: [
+                                    { name: "Relojoeiro", desc: "Produção e reparação de mecanismos complexos de relógios de precisão." },
+                                    { name: "Encadernador", desc: "Restauro e produção de livros com técnicas de costura e colagem manual." },
+                                    { name: "Tipógrafo", desc: "Impressão tradicional com tipos móveis, a arte que precedeu o digital." },
+                                    { name: "Luthier / Organeiro", desc: "Construção e restauro de instrumentos musicais de corda e órgãos de tubos." },
+                                    { name: "Tanoeiro", desc: "Produção de barris e pipas em madeira para armazenamento de vinho." },
+                                    { name: "Barbeiro Tradicional", desc: "Serviço clássico de corte e barba em ambientes de preservação histórica." },
+                                    { name: "Amolador", desc: "Profissional itinerante que afia utensílios cortantes nas ruas tradicionais." }
+                                ]
                             }
-                        ].map((item, i) => (
-                            <details key={i} className="group glass-card rounded-3xl overflow-hidden border-none cursor-pointer transition-all duration-300">
-                                <summary className="flex items-center justify-between p-8 font-black text-heritage-navy dark:text-white list-none">
-                                    <span className="text-xl">{item.profession}</span>
-                                    <motion.div
-                                        animate={{ rotate: 180 }}
-                                        className="w-8 h-8 rounded-full bg-heritage-navy/5 flex items-center justify-center transition-transform group-open:rotate-180"
-                                    >
-                                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                            <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                        </svg>
-                                    </motion.div>
-                                </summary>
-                                <div className="px-8 pb-8 text-heritage-navy/60 dark:text-white/60 font-medium leading-relaxed leading-relaxed animate-in fade-in slide-in-from-top-2">
-                                    {item.description}
+                        ].map((cat, idx) => (
+                            <div key={idx} className="space-y-6">
+                                <h3 className="text-xl font-black text-heritage-navy dark:text-white flex items-center gap-3">
+                                    <span className="w-8 h-8 rounded-lg bg-heritage-terracotta/10 text-heritage-terracotta flex items-center justify-center text-xs">{idx + 1}</span>
+                                    {cat.category}
+                                </h3>
+                                <div className="space-y-3">
+                                    {cat.professions.map((prof, pIdx) => (
+                                        <details key={pIdx} className="group glass-card rounded-2xl border-none cursor-pointer transition-all duration-300">
+                                            <summary className="flex items-center justify-between p-5 font-bold text-heritage-navy/80 dark:text-white/80 list-none text-sm">
+                                                <span>{prof.name}</span>
+                                                <div className="w-5 h-5 rounded-full bg-heritage-navy/5 flex items-center justify-center transition-transform group-open:rotate-180">
+                                                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                                                        <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                                    </svg>
+                                                </div>
+                                            </summary>
+                                            <div className="px-5 pb-5 text-xs text-heritage-navy/60 dark:text-white/40 font-medium leading-relaxed animate-in fade-in slide-in-from-top-1">
+                                                {prof.desc}
+                                            </div>
+                                        </details>
+                                    ))}
                                 </div>
-                            </details>
+                            </div>
                         ))}
                     </div>
                 </div>
