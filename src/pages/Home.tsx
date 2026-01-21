@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Link } from "react-router-dom"
-import { LucideArrowRight, LucideGlobe, LucideShield, LucideUsers, LucideHistory } from "lucide-react"
+import { LucideArrowRight, LucideGlobe, LucideShield, LucideUsers, LucideHistory, LucideRocket, LucideLeaf, LucideHeart } from "lucide-react"
 import { motion } from "framer-motion"
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
@@ -100,23 +100,79 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* Pillars - Modern Grid */}
+            {/* Pillars - Modern Grid with 5 Areas */}
             <section className="py-40 bg-heritage-sand/30 dark:bg-zinc-900/50 px-6 transition-apple">
-                <div className="max-w-7xl mx-auto grid md:grid-cols-2 lg:grid-cols-4 gap-10">
-                    {[
-                        { title: "Habitação", icon: LucideShield, desc: "Renda acessível nos centros históricos.", color: "text-heritage-navy dark:text-white" },
-                        { title: "Cultura", icon: LucideHistory, desc: "Preservação de ofícios e fado.", color: "text-heritage-terracotta" },
-                        { title: "ESG", icon: LucideGlobe, desc: "Sustentabilidade em cada obra.", color: "text-heritage-ocean" },
-                        { title: "Rede", icon: LucideUsers, desc: "Fortalecimento do tecido social.", color: "text-heritage-success" }
-                    ].map((pillar, i) => (
-                        <div key={i} className="glass-card p-12 rounded-[48px] shadow-sm hover:shadow-2xl transition-apple group cursor-default border-none">
-                            <div className={`w-20 h-20 rounded-3xl bg-heritage-sand dark:bg-zinc-800 flex items-center justify-center mb-10 ${pillar.color} group-hover:scale-110 transition-apple`}>
-                                <pillar.icon className="w-10 h-10" />
-                            </div>
-                            <h3 className="text-2xl font-black text-heritage-navy dark:text-white mb-4 transition-apple">{pillar.title}</h3>
-                            <p className="text-heritage-navy/50 dark:text-white/30 font-medium leading-relaxed transition-apple">{pillar.desc}</p>
-                        </div>
-                    ))}
+                <div className="max-w-7xl mx-auto space-y-16">
+                    <div className="text-center space-y-6">
+                        <Badge className="bg-heritage-terracotta/10 text-heritage-terracotta border-none px-4 rounded-full font-black uppercase tracking-widest text-[10px]">5 Pilares de Impacto</Badge>
+                        <h2 className="text-4xl md:text-6xl font-black text-heritage-navy dark:text-white transition-apple">Atuação <span className="text-heritage-terracotta">Multidimensional</span></h2>
+                        <p className="text-lg text-heritage-navy/60 dark:text-white/40 max-w-2xl mx-auto font-medium">
+                            Do empreendedorismo social à tecnologia de impacto, criamos soluções integradas para desafios complexos.
+                        </p>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
+                        {[
+                            {
+                                title: "Habitação Social",
+                                subtitle: "Reabilitação Urbana",
+                                icon: LucideShield,
+                                desc: "Projetos de habitação acessível nos centros históricos",
+                                color: "text-heritage-navy dark:text-white",
+                                bg: "bg-heritage-navy/5 dark:bg-white/5"
+                            },
+                            {
+                                title: "Empreendedorismo",
+                                subtitle: "Negócios Sociais",
+                                icon: LucideRocket,
+                                desc: "Incubação de startups com impacto social positivo",
+                                color: "text-heritage-terracotta",
+                                bg: "bg-heritage-terracotta/5"
+                            },
+                            {
+                                title: "Sustentabilidade",
+                                subtitle: "Economia Circular",
+                                icon: LucideLeaf,
+                                desc: "Materiais ecológicos e energia 100% renovável",
+                                color: "text-heritage-success",
+                                bg: "bg-heritage-success/5"
+                            },
+                            {
+                                title: "Inclusão Social",
+                                subtitle: "Combate à Pobreza",
+                                icon: LucideHeart,
+                                desc: "Capacitação profissional e preservação de ofícios",
+                                color: "text-heritage-gold",
+                                bg: "bg-heritage-gold/5"
+                            },
+                            {
+                                title: "Inovação",
+                                subtitle: "Tecnologia Social",
+                                icon: LucideUsers,
+                                desc: "Soluções tecnológicas para desafios sociais",
+                                color: "text-heritage-ocean",
+                                bg: "bg-heritage-ocean/5"
+                            }
+                        ].map((pillar, i) => (
+                            <motion.div
+                                key={i}
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                transition={{ delay: i * 0.08 }}
+                                viewport={{ once: true }}
+                                className="glass-card p-8 rounded-[32px] shadow-sm hover:shadow-2xl transition-all duration-500 group cursor-default border-none hover:-translate-y-2"
+                            >
+                                <div className={`w-14 h-14 rounded-2xl ${pillar.bg} flex items-center justify-center mb-6 ${pillar.color} group-hover:scale-110 transition-transform`}>
+                                    <pillar.icon className="w-7 h-7" />
+                                </div>
+                                <div className="space-y-2 mb-4">
+                                    <h3 className="text-xl font-black text-heritage-navy dark:text-white transition-apple leading-tight">{pillar.title}</h3>
+                                    <p className="text-xs font-bold text-heritage-navy/50 dark:text-white/40 uppercase tracking-widest">{pillar.subtitle}</p>
+                                </div>
+                                <p className="text-sm text-heritage-navy/60 dark:text-white/40 font-medium leading-relaxed transition-apple">{pillar.desc}</p>
+                            </motion.div>
+                        ))}
+                    </div>
                 </div>
             </section>
         </div>

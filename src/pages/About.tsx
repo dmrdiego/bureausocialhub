@@ -65,32 +65,84 @@ export default function About() {
                 </div>
             </section>
 
-            {/* Values Section - Glass Grid */}
+            {/* Impact Areas Section - 5 Pillars Grid */}
             <section className="py-40 px-6 bg-heritage-sand/10 dark:bg-zinc-900/30 transition-apple">
-                <div className="max-w-7xl mx-auto space-y-32">
+                <div className="max-w-7xl mx-auto space-y-20">
                     <div className="text-center space-y-8">
-                        <h2 className="text-5xl md:text-7xl font-black text-heritage-navy dark:text-white transition-apple">Nossos Princípios</h2>
+                        <Badge variant="outline" className="border-heritage-gold/20 text-heritage-gold px-6 py-2 rounded-full uppercase text-[10px] font-black tracking-widest">Impacto Social Multidimensional</Badge>
+                        <h2 className="text-5xl md:text-7xl font-black text-heritage-navy dark:text-white transition-apple">As Nossas Áreas de <span className="text-heritage-terracotta">Impacto</span></h2>
                         <div className="h-1.5 w-24 bg-heritage-gold mx-auto rounded-full"></div>
+                        <p className="text-xl text-heritage-navy/60 dark:text-white/40 max-w-3xl mx-auto font-medium">
+                            O Bureau Social atua em 5 pilares fundamentais para criar transformação social sustentável e escalável.
+                        </p>
                     </div>
 
-                    <div className="grid md:grid-cols-3 gap-12">
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {[
                             {
-                                title: "Transparência",
-                                desc: "Relatórios auditados e públicos para total confiança dos associados."
+                                title: "Habitação Social e Reabilitação",
+                                desc: "Desenvolvimento de projetos de habitação acessível e reabilitação de edifícios históricos, garantindo que as comunidades locais permaneçam nos centros urbanos.",
+                                icon: LucideShieldCheck,
+                                color: "text-heritage-navy",
+                                bg: "bg-heritage-navy/5"
                             },
                             {
-                                title: "Sustentabilidade",
-                                desc: "Materiais ecológicos e energia 100% renovável em nossas reabilitações."
+                                title: "Empreendedorismo Social",
+                                desc: "Incubação e aceleração de negócios sociais que geram impacto positivo e sustentabilidade financeira, capacitando empreendedores locais.",
+                                icon: LucideHeartHandshake,
+                                color: "text-heritage-terracotta",
+                                bg: "bg-heritage-terracotta/5"
                             },
                             {
-                                title: "Inclusão",
-                                desc: "Garantimos habitação digna a rendas acessíveis para a comunidade local."
+                                title: "Sustentabilidade Ambiental",
+                                desc: "Promoção da economia circular e práticas de construção sustentável, utilizando materiais ecológicos e energia 100% renovável.",
+                                icon: LucideGlobe,
+                                color: "text-heritage-success",
+                                bg: "bg-heritage-success/5"
+                            },
+                            {
+                                title: "Inclusão e Combate à Pobreza",
+                                desc: "Programas de capacitação profissional, preservação de ofícios tradicionais e integração no mercado de trabalho para populações vulneráveis.",
+                                icon: LucideHeartHandshake,
+                                color: "text-heritage-gold",
+                                bg: "bg-heritage-gold/5"
+                            },
+                            {
+                                title: "Inovação e Tecnologia Social",
+                                desc: "Desenvolvimento de soluções tecnológicas e metodologias inovadoras para resolver desafios sociais de forma escalável.",
+                                icon: LucideScale,
+                                color: "text-heritage-ocean",
+                                bg: "bg-heritage-ocean/5"
                             }
-                        ].map((v, i) => (
-                            <div key={i} className="glass-card p-14 rounded-[56px] shadow-sm space-y-8 transition-apple hover:-translate-y-4 border-none">
-                                <h4 className="text-3xl font-black text-heritage-navy dark:text-white transition-apple">{v.title}</h4>
-                                <p className="text-lg text-heritage-navy/40 dark:text-white/30 font-medium leading-relaxed transition-apple">{v.desc}</p>
+                        ].map((pillar, i) => (
+                            <motion.div
+                                key={i}
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                transition={{ delay: i * 0.1 }}
+                                viewport={{ once: true }}
+                                className={`glass-card p-10 rounded-[40px] shadow-sm space-y-6 transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl border-none group ${i === 4 ? 'md:col-span-2 lg:col-span-1' : ''}`}
+                            >
+                                <div className={`w-16 h-16 rounded-2xl ${pillar.bg} flex items-center justify-center ${pillar.color} group-hover:scale-110 transition-transform`}>
+                                    <pillar.icon className="w-8 h-8" />
+                                </div>
+                                <h4 className="text-2xl font-black text-heritage-navy dark:text-white transition-apple leading-tight">{pillar.title}</h4>
+                                <p className="text-base text-heritage-navy/60 dark:text-white/50 font-medium leading-relaxed transition-apple">{pillar.desc}</p>
+                            </motion.div>
+                        ))}
+                    </div>
+
+                    {/* Impact Stats */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8 pt-16">
+                        {[
+                            { number: "50+", label: "Famílias Apoiadas", color: "text-heritage-navy" },
+                            { number: "12", label: "Negócios Sociais", color: "text-heritage-terracotta" },
+                            { number: "100%", label: "Energia Renovável", color: "text-heritage-success" },
+                            { number: "200+", label: "Profissionais Capacitados", color: "text-heritage-gold" }
+                        ].map((stat, i) => (
+                            <div key={i} className="text-center space-y-3">
+                                <div className={`text-5xl md:text-6xl font-black ${stat.color} transition-apple`}>{stat.number}</div>
+                                <div className="text-sm font-bold uppercase tracking-widest text-heritage-navy/50 dark:text-white/40 transition-apple">{stat.label}</div>
                             </div>
                         ))}
                     </div>
