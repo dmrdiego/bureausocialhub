@@ -83,6 +83,15 @@ export default function Navbar() {
                         <div className="h-6 w-px bg-heritage-navy/10 dark:bg-white/10 mx-2" />
 
                         <div className="flex items-center gap-4">
+                            <motion.a
+                                href="https://donate.stripe.com/test_demo"
+                                target="_blank"
+                                className="text-heritage-terracotta hover:text-heritage-terracotta/80 transition-colors flex items-center gap-1.5 mr-2 group"
+                                whileHover={{ scale: 1.05 }}
+                            >
+                                <div className="w-1.5 h-1.5 rounded-full bg-heritage-terracotta animate-pulse" />
+                                <span>Doe Agora</span>
+                            </motion.a>
                             <div className="flex items-center gap-2 cursor-pointer hover:text-heritage-terracotta dark:hover:text-white transition-colors group">
                                 <LucideGlobe className="w-4 h-4 group-hover:rotate-12 transition-transform" />
                                 <span>PT</span>
@@ -116,7 +125,7 @@ export default function Navbar() {
                         </button>
                     </div>
                 </div>
-            </nav>
+            </nav >
 
             <AnimatePresence>
                 {isMobileMenuOpen && (

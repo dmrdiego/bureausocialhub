@@ -132,6 +132,66 @@ export default function Traditions() {
                 </div>
             </section>
 
+            {/* Professions FAQ Section */}
+            <section className="px-6 pb-32">
+                <div className="max-w-4xl mx-auto space-y-12">
+                    <div className="text-center space-y-4">
+                        <h2 className="text-4xl font-black text-heritage-navy dark:text-white tracking-tight">
+                            Glossário de <span className="text-heritage-terracotta">Ofícios Tradicionais</span>
+                        </h2>
+                        <p className="text-heritage-navy/60 dark:text-white/40 font-medium">
+                            Conheça as competências que procuramos para a preservação da identidade de Lisboa.
+                        </p>
+                    </div>
+
+                    <div className="grid gap-4">
+                        {[
+                            {
+                                profession: "Mestre de Cantaria",
+                                description: "Especialista na talha, moldagem e aplicação de pedra lioz e granito. Essencial para a reabilitação de fachadas e pavimentos históricos."
+                            },
+                            {
+                                profession: "Azulejaria e Pintura Decorativa",
+                                description: "Estudo, preservação e criação de painéis de azulejos de alto valor artístico e cultural, respeitando as técnicas ancestrais."
+                            },
+                            {
+                                profession: "Marcenaria de Casquinha",
+                                description: "Carpintaria de acabamentos em madeira de 'casquinha', típica dos interiores lisboetas. Recuperação de portadas e assoalhos."
+                            },
+                            {
+                                profession: "Ferraria Artística",
+                                description: "Trabalho manual de ferro forjado para a restauração de varandins, portões e ornamentos típicos da arquitetura pombalina."
+                            },
+                            {
+                                profession: "Estucadores e Gessadores",
+                                description: "Técnicas de estuque ornamentado para tetos e paredes, fundamentais para a dignidade dos interiores monumentais."
+                            },
+                            {
+                                profession: "Cordoaria e Calafatagem",
+                                description: "Ofícios ligados à história marítima de Lisboa, mantendo vivas as técnicas de cordas e vedação de estruturas de madeira."
+                            }
+                        ].map((item, i) => (
+                            <details key={i} className="group glass-card rounded-3xl overflow-hidden border-none cursor-pointer transition-all duration-300">
+                                <summary className="flex items-center justify-between p-8 font-black text-heritage-navy dark:text-white list-none">
+                                    <span className="text-xl">{item.profession}</span>
+                                    <motion.div
+                                        animate={{ rotate: 180 }}
+                                        className="w-8 h-8 rounded-full bg-heritage-navy/5 flex items-center justify-center transition-transform group-open:rotate-180"
+                                    >
+                                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                    </motion.div>
+                                </summary>
+                                <div className="px-8 pb-8 text-heritage-navy/60 dark:text-white/60 font-medium leading-relaxed leading-relaxed animate-in fade-in slide-in-from-top-2">
+                                    {item.description}
+                                </div>
+                            </details>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
             {/* Call to Action */}
             <section className="px-6 pb-20">
                 <div className="max-w-5xl mx-auto">

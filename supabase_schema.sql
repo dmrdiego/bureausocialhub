@@ -88,6 +88,11 @@ begin
     if not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'quota_status') then
         alter table profiles add column quota_status text default 'inactive';
     end if;
+
+    -- Add can_vote flag directly to profile for easier UI checks
+    if not exists (select 1 from information_schema.columns where table_name = 'profiles' and column_name = 'can_vote') then
+        alter table profiles add column can_vote boolean default false;
+    end if;
 end $$;
 
 -- 6. RLS Policies (Basic examples - refine as needed)
@@ -202,6 +207,36 @@ create table if not exists events (
 alter table events enable row level security;
 create policy "Events are public" on events for select using ( true );
 create policy "Admins can manage events" on events for all using (
+    exists ( select 1 from profiles where id = auth.uid() and role = 'admin' )
+);
+
+
+-- 11. Documents Management Table
+create table if not exists documents (
+    id uuid default uuid_generate_v4() primary key,
+    title text not null,
+    filename text not null,
+    category text check (category in ('general', 'assembly', 'institutional', 'restricted')) default 'general',
+    min_role text default 'pending', -- 'pending', 'member', 'admin'
+    only_active_members boolean default true,
+    file_url text,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table documents enable row level security;
+
+-- Policy: General docs viewable by pending and above
+create policy "Pending members can view general and institutional docs" on documents for select using (
+    category in ('general', 'institutional') 
+    or (category = 'assembly' and exists (
+        select 1 from profiles 
+        where id = auth.uid() 
+        and (role = 'admin' or quota_status = 'active')
+    ))
+    or (role = 'admin')
+);
+
+create policy "Admins can manage documents" on documents for all using (
     exists ( select 1 from profiles where id = auth.uid() and role = 'admin' )
 );
 

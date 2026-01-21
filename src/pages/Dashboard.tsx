@@ -60,6 +60,18 @@ export default function Dashboard() {
     const quotaColor = profile?.quota_status === 'active' ? 'text-heritage-success' : (profile?.quota_status === 'late' ? 'text-red-500' : 'text-heritage-gold')
     const quotaNext = profile?.quota_next_due ? new Date(profile.quota_next_due).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' }) : 'Indefinido'
 
+    // Member Category Label
+    const getCategoryLabel = (cat: string) => {
+        const categories: Record<string, string> = {
+            'fundador': 'Sócio Fundador',
+            'efetivo': 'Sócio Efetivo',
+            'auxiliar': 'Sócio Auxiliar',
+            'contribuinte': 'Sócio Contribuinte',
+            'coletiva': 'Pessoa Coletiva'
+        }
+        return categories[cat] || cat;
+    }
+
     return (
         <div className="space-y-10 transition-apple animate-in fade-in duration-700">
             {/* Header - Apple Style */}
@@ -72,7 +84,12 @@ export default function Dashboard() {
                         <Badge className="bg-heritage-success/20 text-heritage-success border-heritage-success/30 px-3 py-0.5 rounded-full font-bold text-[10px] tracking-wider uppercase">
                             {displayRole}
                         </Badge>
-                        <span className="text-heritage-navy/30 dark:text-white/20 text-xs font-black uppercase tracking-widest">• Status: Ativo</span>
+                        {profile?.member_category && (
+                            <Badge variant="outline" className="border-heritage-gold/30 text-heritage-gold px-3 py-0.5 rounded-full font-bold text-[10px] tracking-wider uppercase">
+                                {getCategoryLabel(profile.member_category)}
+                            </Badge>
+                        )}
+                        <span className="text-heritage-navy/30 dark:text-white/20 text-xs font-black uppercase tracking-widest">• Status: {profile?.quota_status === 'active' ? 'Ativo' : 'Pendente'}</span>
                     </div>
                 </div>
                 <div className="glass-card px-6 py-3 rounded-2xl border-none shadow-sm flex items-center gap-3">
@@ -165,7 +182,16 @@ export default function Dashboard() {
                         </div>
                         <div>
                             <div className="text-2xl font-black text-heritage-navy dark:text-white transition-apple">{stat.val}</div>
-                            <p className="text-xs text-heritage-navy/40 dark:text-white/30 font-medium transition-apple">{stat.sub}</p>
+                            <p className="text-xs text-heritage-navy/40 dark:text-white/30 font-medium transition-apple mb-4">{stat.sub}</p>
+                            {stat.title === "Quotas" && profile?.quota_status !== 'active' && (
+                                <Button
+                                    size="sm"
+                                    className="w-full bg-heritage-gold text-heritage-navy font-bold rounded-xl h-8 hover:bg-heritage-gold/80"
+                                    onClick={() => toast.info("Direcionando para o Stripe...", { description: "Poderá pagar o seu joio ou quota em modo de teste." })}
+                                >
+                                    Pagar Agora
+                                </Button>
+                            )}
                         </div>
                     </motion.div>
                 ))}

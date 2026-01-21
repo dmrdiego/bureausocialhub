@@ -11,6 +11,8 @@ import { LucideArrowLeft, LucideUser, LucideHome, LucideHammer, LucideCheckCircl
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 import { jsPDF } from "jspdf"
 import { emailService } from "@/lib/emailService"
 
@@ -69,7 +71,8 @@ export default function CandidaturaDetails() {
         email: '',
         oficio: '',
         member_number: '',
-        member_category: 'efetivo'
+        member_category: 'efetivo',
+        is_exempt: false
     })
 
     // Pre-fill approval data when candidature loads
@@ -89,7 +92,8 @@ export default function CandidaturaDetails() {
                 email: candidatura.form_data.email || '',
                 oficio: candidatura.form_data.oficio || '',
                 member_number: `M-${currentYear}-${randomCode}`,
-                member_category: defaultCategory
+                member_category: defaultCategory,
+                is_exempt: false
             })
         }
     }, [candidatura])
@@ -147,6 +151,8 @@ export default function CandidaturaDetails() {
             doc.save(`Certificado_${approvalData.nome.replace(/\s+/g, '_')}.pdf`)
 
             // 2. Update DB
+            const isVotingCategory = ['fundador', 'efetivo'].includes(approvalData.member_category)
+
             const { error: candError } = await supabase
                 .from('candidaturas')
                 .update({ status: 'approved' })
@@ -159,8 +165,9 @@ export default function CandidaturaDetails() {
                     role: 'member',
                     member_category: approvalData.member_category,
                     member_number: approvalData.member_number,
-                    quota_status: 'active',
-                    full_name: approvalData.nome // Update name if fixed
+                    quota_status: approvalData.is_exempt ? 'active' : 'pending',
+                    can_vote: isVotingCategory && approvalData.is_exempt, // Only vote if category matches AND status is active
+                    full_name: approvalData.nome
                 })
                 .eq('id', candidatura.user_id)
             if (profileError) throw profileError
@@ -388,6 +395,17 @@ export default function CandidaturaDetails() {
                                                 <div className="h-12 rounded-xl bg-heritage-navy/5 dark:bg-white/5 flex items-center px-4 font-mono font-bold text-heritage-navy dark:text-white">
                                                     {approvalData.member_number}
                                                 </div>
+                                            </div>
+
+                                            <div className="col-span-2 p-4 bg-heritage-sand/20 dark:bg-zinc-800/50 rounded-2xl flex items-center justify-between">
+                                                <div className="space-y-0.5">
+                                                    <Label className="text-sm font-bold text-heritage-navy dark:text-white">Ativação Imediata</Label>
+                                                    <p className="text-xs text-heritage-navy/60 dark:text-white/40">Definir como "Ativo" (Isento ou já pago) e conceder direito a voto se aplicável.</p>
+                                                </div>
+                                                <Switch
+                                                    checked={approvalData.is_exempt}
+                                                    onCheckedChange={(val) => setApprovalData({ ...approvalData, is_exempt: val })}
+                                                />
                                             </div>
                                         </div>
 

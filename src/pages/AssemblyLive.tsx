@@ -21,6 +21,8 @@ import {
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { jsPDF } from "jspdf"
+import "jspdf-autotable"
 
 interface Assembly {
     id: string
@@ -153,9 +155,16 @@ export default function AssemblyLive() {
 
     const handleVote = async (itemId: string, option: 'approve' | 'reject' | 'abstain') => {
         if (!profile || !activeAssembly) return
+
+        // 1. Permission Check
+        if (!profile.can_vote || profile.quota_status !== 'active') {
+            toast.error("A sua categoria ou status de quota não permite votar nesta assembleia.")
+            return
+        }
+
         setVotingItem(itemId)
 
-        // Determine weight based on profile category (simplified logic)
+        // Determine weight based on profile category
         const weight = profile.member_category === 'fundador' ? 3 : 1
 
         try {
@@ -227,6 +236,128 @@ export default function AssemblyLive() {
             logSystemError(err, 'AssemblyLive.handleCheckIn', profile?.id)
         } finally {
             setIsCheckingIn(false)
+        }
+    }
+
+    // Generate Minutes (Ata 2.0)
+    const handleGenerateMinutes = async () => {
+        if (!activeAssembly || !profile || profile.role !== 'admin') return
+        const loadingToast = toast.loading("Gerando Ata consolidada...")
+
+        try {
+            // 1. Fetch full attendance with names
+            const { data: attendance, error: attError } = await supabase
+                .from('assembly_attendances')
+                .select(`
+                    id,
+                    user_id,
+                    profiles:user_id (full_name, member_number, member_category)
+                `)
+                .eq('assembly_id', activeAssembly.id)
+
+            if (attError) throw attError
+
+            // 2. Fetch full votes for consolidation
+            const { data: votes, error: votesError } = await supabase
+                .from('votes')
+                .select('*')
+                .in('assembly_item_id', agendaItems.map(i => i.id))
+
+            if (votesError) throw votesError
+
+            // 3. Create PDF
+            const doc = new jsPDF()
+            const primaryColor = "#1B2B44" // Heritage Navy
+
+            // Header
+            doc.setFillColor(primaryColor)
+            doc.rect(0, 0, 210, 40, 'F')
+            doc.setTextColor(255, 255, 255)
+            doc.setFontSize(22)
+            doc.setFont("helvetica", "bold")
+            doc.text("ATA DE ASSEMBLEIA GERAL", 105, 20, { align: "center" })
+            doc.setFontSize(10)
+            doc.text(`BUREAU SOCIAL HUB - REABILITAÇÃO E TRADIÇÃO`, 105, 30, { align: "center" })
+
+            // Info Section
+            doc.setTextColor(60, 60, 60)
+            doc.setFontSize(12)
+            doc.text(`Assembleia: ${activeAssembly.title}`, 20, 50)
+            doc.text(`Data: ${new Date(activeAssembly.date).toLocaleString('pt-PT')}`, 20, 57)
+            doc.text(`Local: Portal Digital Bureau Social`, 20, 64)
+            doc.text(`Quórum: ${attendance.length} Associados Registados`, 20, 71)
+
+            // Attendees Table
+            doc.setFont("helvetica", "bold")
+            doc.text("1. LISTA DE PRESENÇAS", 20, 85)
+            const attendeeRows = attendance.map((at: any) => [
+                at.profiles?.full_name || "Desconhecido",
+                at.profiles?.member_number || "-",
+                at.profiles?.member_category || "Membro"
+            ])
+
+                ; (doc as any).autoTable({
+                    startY: 90,
+                    head: [['Nome Completo', 'Nº Sócio', 'Categoria']],
+                    body: attendeeRows,
+                    theme: 'striped',
+                    headStyles: { fillStyle: primaryColor }
+                })
+
+            // Voting Results
+            let currentY = (doc as any).lastAutoTable.finalY + 15
+            doc.setFont("helvetica", "bold")
+            doc.text("2. DELIBERAÇÕES E VOTAÇÕES", 20, currentY)
+            currentY += 10
+
+            agendaItems.forEach((item, index) => {
+                if (currentY > 250) {
+                    doc.addPage()
+                    currentY = 20
+                }
+
+                const itemVotes = votes.filter(v => v.assembly_item_id === item.id)
+                const approves = itemVotes.filter(v => v.vote_option === 'approve').reduce((acc, v) => acc + (v.weight || 1), 0)
+                const rejects = itemVotes.filter(v => v.vote_option === 'reject').reduce((acc, v) => acc + (v.weight || 1), 0)
+                const abstains = itemVotes.filter(v => v.vote_option === 'abstain').reduce((acc, v) => acc + (v.weight || 1), 0)
+                const total = approves + rejects + abstains
+
+                doc.setFontSize(11)
+                doc.setFont("helvetica", "bold")
+                doc.text(`${index + 1}. ${item.title}`, 25, currentY)
+                currentY += 7
+                doc.setFont("helvetica", "normal")
+                doc.setFontSize(10)
+                doc.text(`Resultado: ${approves} Favor | ${rejects} Contra | ${abstains} Abstenções (Peso Total: ${total})`, 30, currentY)
+
+                const resultText = total > 0 && approves > (rejects + abstains) ? "APROVADO" : "REJEITADO / NÃO DELIBERADO"
+                doc.setFont("helvetica", "bold")
+                doc.text(`Conclusão: ${resultText}`, 30, currentY + 6)
+
+                currentY += 18
+            })
+
+            // Footer / Signatures
+            if (currentY > 240) {
+                doc.addPage()
+                currentY = 20
+            }
+            currentY += 20
+            doc.line(20, currentY, 90, currentY)
+            doc.line(120, currentY, 190, currentY)
+            doc.setFontSize(9)
+            doc.text("A Direção", 55, currentY + 5, { align: "center" })
+            doc.text("O Secretariado", 155, currentY + 5, { align: "center" })
+
+            doc.save(`Ata_${activeAssembly.title.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`)
+
+            toast.dismiss(loadingToast)
+            toast.success("Ata gerada com sucesso!")
+
+        } catch (err: any) {
+            console.error(err)
+            toast.dismiss(loadingToast)
+            toast.error("Erro ao gerar ata", { description: err.message })
         }
     }
 
@@ -484,6 +615,36 @@ export default function AssemblyLive() {
                         )
                     })}
                 </div>
+
+                {/* Admin Controls: Generate Minutes (Visible only to Admin) */}
+                {profile?.role === 'admin' && (
+                    <div className="mt-12 p-10 bg-heritage-navy rounded-[40px] text-white space-y-6 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-heritage-gold/20 rounded-full blur-3xl -mr-20 -mt-20"></div>
+                        <div className="relative z-10">
+                            <h3 className="text-3xl font-black mb-2">Finalizar Assembleia</h3>
+                            <p className="text-white/60 font-medium mb-8">Como administrador, pode encerrar a votação e gerar a ata oficial com os resultados consolidados.</p>
+
+                            <div className="flex gap-4">
+                                <Button
+                                    className="bg-white text-heritage-navy hover:bg-heritage-gold hover:text-white rounded-2xl h-14 px-8 font-black uppercase tracking-widest text-xs transition-apple"
+                                    onClick={handleGenerateMinutes}
+                                >
+                                    Gerar Ata (Ata 2.0)
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    className="border-white/20 hover:bg-white/10 text-white rounded-2xl h-14 px-8 font-black uppercase tracking-widest text-xs transition-apple"
+                                    onClick={() => toast.warning("Encerrar Assembleia?", {
+                                        description: "Isto impedirá novos votos.",
+                                        action: { label: "Confirmar", onClick: () => { } }
+                                    })}
+                                >
+                                    Encerrar Sessão
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </main>
         </div>
     )
