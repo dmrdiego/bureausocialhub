@@ -18,6 +18,7 @@ interface Profile {
     member_category?: 'fundador' | 'efetivo' | 'contribuinte' | 'voluntario' | 'profissional' | 'benemerito' | 'patrocinador' | 'institucional'
     member_number?: string
     is_direction?: boolean
+    can_vote?: boolean
     created_at: string
 }
 

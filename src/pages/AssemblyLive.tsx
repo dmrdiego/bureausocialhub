@@ -316,10 +316,10 @@ export default function AssemblyLive() {
                     currentY = 20
                 }
 
-                const itemVotes = votes.filter(v => v.assembly_item_id === item.id)
-                const approves = itemVotes.filter(v => v.vote_option === 'approve').reduce((acc, v) => acc + (v.weight || 1), 0)
-                const rejects = itemVotes.filter(v => v.vote_option === 'reject').reduce((acc, v) => acc + (v.weight || 1), 0)
-                const abstains = itemVotes.filter(v => v.vote_option === 'abstain').reduce((acc, v) => acc + (v.weight || 1), 0)
+                const itemVotes = votes.filter((v: any) => v.assembly_item_id === item.id)
+                const approves = itemVotes.filter((v: any) => v.vote_option === 'approve').reduce((acc: number, v: any) => acc + (v.weight || 1), 0)
+                const rejects = itemVotes.filter((v: any) => v.vote_option === 'reject').reduce((acc: number, v: any) => acc + (v.weight || 1), 0)
+                const abstains = itemVotes.filter((v: any) => v.vote_option === 'abstain').reduce((acc: number, v: any) => acc + (v.weight || 1), 0)
                 const total = approves + rejects + abstains
 
                 doc.setFontSize(11)
