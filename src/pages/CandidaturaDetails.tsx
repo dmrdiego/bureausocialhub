@@ -261,7 +261,7 @@ export default function CandidaturaDetails() {
     const status = candidatura.status
 
     return (
-        <div className="min-h-screen bg-background transition-apple p-6 md:p-12 pb-32">
+        <div className="min-h-screen bg-background transition-apple pt-32 p-6 md:pt-40 md:p-12 pb-32">
             <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
                 {/* Header */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
